@@ -29,7 +29,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "arq"
 version = "0.1.0"
 dependencies = [
+ "bitflags 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hyper 0.10.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rusoto_core 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rusoto_s3 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

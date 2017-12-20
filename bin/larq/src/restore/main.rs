@@ -2,8 +2,10 @@ extern crate arq;
 extern crate argparse;
 extern crate chrono;
 extern crate toml;
-#[macro_use] extern crate log;
-#[macro_use] extern crate serde_derive;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde;
 extern crate simple_logger;
 extern crate rusoto_core;
@@ -15,17 +17,14 @@ mod config;
 use std::env;
 use std::io;
 use std::process::exit;
-use rusoto_s3::{S3, S3Client};
-use rusoto_core::{Region, default_tls_client};
+use rusoto_core::{Region};
 
 fn main() {
     use cli::Args;
 
-    let args = match Args::parse(env::args().collect(),
-                                 &mut io::stdout(),
-                                 &mut io::stderr()) {
+    let args = match Args::parse(env::args().collect(), &mut io::stdout(), &mut io::stderr()) {
         Ok(a) => a,
-        Err(n) => exit(n)
+        Err(n) => exit(n),
     };
 
     simple_logger::init_with_level(log::LogLevel::Debug).unwrap();
@@ -39,28 +38,18 @@ fn main() {
         }
     };
 
-    let dispatcher = default_tls_client().unwrap();
-    let client = S3Client::new(
-        dispatcher,
-        cfg.clone(),
-        Region::ApSoutheast2
-    );
+    let transport = Box::new(arq::s3::Transport::new(
+        &cfg.bucket_name,
+        &cfg.access_key_id,
+        &cfg.secret_key,
+        rusoto_core::Region::ApSoutheast2));
+    let repo = arq::Repository::new(&args.computer_id, transport);
 
-    let buckets = client.list_buckets().unwrap();
-    match buckets.buckets {
-        Some(bs) => {
-            for b in bs.iter() {
-                let bucket_name = match b.name {
-                    Some(ref s) => s,
-                    None => "unnamed"
-                };
-                println!("Bucket: {}", bucket_name);
-            }
-        },
-        None => {
-            println!("No buckets to be had");
-        }
+    debug!("fetching repo salt...");
+    match repo.salt() {
+        Ok(s) => info!("Salt: {:?}", s),
+        Err(e) =>  error!("Listing failed with error: {:?}", e)
     }
 
-}
 
+}

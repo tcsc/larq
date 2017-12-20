@@ -6,10 +6,6 @@ use rusoto_core::Region;
 use toml::{self, Value};
 use serde;
 use log;
-use std::time::{Duration, SystemTime};
-use chrono::{DateTime, Utc};
-
-use rusoto_core::{AwsCredentials, CredentialsError, ProvideAwsCredentials};
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Clone)]
 #[serde(rename_all="lowercase")]
@@ -20,22 +16,13 @@ pub enum StorageClass {
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Clone)]
 pub struct Config {
-    class: StorageClass,
-    access_key_id: String,
-    secret_key: String,
-    region: String
+    pub class: StorageClass,
+    pub access_key_id: String,
+    pub secret_key: String,
+    pub region: String,
+    pub bucket_name: String
 }
 
-impl ProvideAwsCredentials for Config {
-    fn credentials(&self) -> Result<AwsCredentials, CredentialsError> {
-        let expiry = SystemTime::now() + Duration::from_secs(60 * 60);
-        let creds = AwsCredentials::new(self.access_key_id.clone(),
-                                        self.secret_key.clone(),
-                                        None,
-                                        DateTime::<Utc>::from(expiry));
-        Ok(creds)
-    }
-}
 
 #[derive(Debug)]
 pub enum ConfigErr {
@@ -86,15 +73,18 @@ mod test {
                     region = \"ap-southeast-2\"\n \
                     access_key_id = \"ACCESS_KEY_ID\"\n \
                     secret_key = \"secret_key\"\n \
-                    class = \"glacier\"\n";
+                    class = \"glacier\"\n \
+                    bucket_name = \"some-bucket\"\n";
 
         let cfg = toml::from_str::<Config>(text).unwrap();
         let expected = Config {
             region: "ap-southeast-2".to_string(),
             access_key_id: "ACCESS_KEY_ID".to_string(),
             secret_key: "secret_key".to_string(),
-            class: StorageClass::Glacier
+            class: StorageClass::Glacier,
+            bucket_name: "some-bucket".to_string()
         };
+
         assert_eq!(expected, cfg)
     }
 }
