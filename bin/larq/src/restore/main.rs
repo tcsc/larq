@@ -1,23 +1,12 @@
-extern crate arq;
-extern crate argparse;
-extern crate chrono;
-extern crate toml;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-extern crate simple_logger;
-extern crate rusoto_core;
-extern crate rusoto_s3;
-
 mod cli;
 mod config;
 
+use log::{debug, error, info};
+use rusoto_core::Region;
 use std::env;
 use std::io;
 use std::process::exit;
-use rusoto_core::{Region};
+use tokio::prelude::*;
 
 fn main() {
     use cli::Args;
@@ -27,7 +16,7 @@ fn main() {
         Err(n) => exit(n),
     };
 
-    simple_logger::init_with_level(log::LogLevel::Debug).unwrap();
+    simple_logger::init_with_level(log::Level::Debug).unwrap();
 
     debug!("Loading config from {:?}...", args.config_file);
     let cfg = match config::load(&args.config_file) {
@@ -38,18 +27,20 @@ fn main() {
         }
     };
 
-    let transport = Box::new(arq::s3::Transport::new(
+    let transport = arq::s3::Transport::new(
         &cfg.bucket_name,
         &cfg.access_key_id,
         &cfg.secret_key,
-        rusoto_core::Region::ApSoutheast2));
-    let repo = arq::Repository::new(&args.computer_id, transport);
+        rusoto_core::Region::ApSoutheast2,
+    )
+    .expect("Transport construction");
+    let repo = arq::Repository::new(&args.computer_id, Box::new(transport));
+
+    let mut rt = tokio::runtime::Runtime::new().expect("Runtime");
 
     debug!("fetching repo salt...");
-    match repo.salt() {
+    match rt.block_on(repo.salt()) {
         Ok(s) => info!("Salt: {:?}", s),
-        Err(e) =>  error!("Listing failed with error: {:?}", e)
+        Err(e) => error!("Listing failed with error: {:?}", e),
     }
-
-
 }

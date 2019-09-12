@@ -2,11 +2,17 @@
 name = "arq"
 version = "0.1.0"
 authors = ["Trent Clarke <trent.clarke@gmail.com>"]
+edition = "2018"
 
 [dependencies]
-bitflags="1.0.1"
+bitflags="1.1"
+bytes = "0.4" 
+byteorder = "1.2"
 chrono="0.4"
-hyper="0.10.13"
-log="0.3.8"
-rusoto_core="0.30.0"
-rusoto_s3="0.30.0"
+hyper="0.10"
+log="0.4"
+ring = "0.16"
+futures = "0.1"
+rusoto_core="0.40"
+rusoto_s3="0.40"
+rusoto_credential="0.40"

@@ -1,5 +1,5 @@
-use std::ops::Div;
 use std::convert::From;
+use std::ops::Div;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 pub struct Key(String);
@@ -44,8 +44,6 @@ impl<'a> Div<&'a str> for Key {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -53,6 +51,6 @@ mod tests {
     #[test]
     fn key_concatenation_with_str() {
         let root = Key::from("root");
-        assert_eq!(root/"alpha"/"beta", Key::from("root/alpha/beta"))
+        assert_eq!(root / "alpha" / "beta", Key::from("root/alpha/beta"))
     }
 }

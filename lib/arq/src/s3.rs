@@ -1,149 +1,159 @@
-use std::time::{Duration, SystemTime};
-use chrono::{DateTime, Utc};
-use hyper::Client;
-use rusoto_core::{AwsCredentials, CredentialsError, ProvideAwsCredentials, Region, default_tls_client};
-use rusoto_s3::{
-    S3Client, S3,
-    GetObjectRequest, GetObjectError,
-    ListObjectsV2Request, ListObjectsV2Error
+use super::{Include, Key, StorageError, StorageObject};
+use bytes::Bytes;
+use futures::{
+    future::{self, loop_fn, Either, Loop},
+    Future, Stream,
 };
-
-use super::{Include, StorageObject, TransportError, Key};
-
-struct Credentials {
-    access_key_id: String,
-    secret_key: String,
-}
-
-impl ProvideAwsCredentials for Credentials {
-    fn credentials(&self) -> Result<AwsCredentials, CredentialsError> {
-        let expiry = SystemTime::now() + Duration::from_secs(60 * 60);
-        let creds = AwsCredentials::new(self.access_key_id.clone(),
-                                        self.secret_key.clone(),
-                                        None,
-                                        DateTime::<Utc>::from(expiry));
-        Ok(creds)
-    }
-}
+use log::{debug, error};
+use rusoto_core::{
+    request::{HttpClient, TlsError},
+    Region, RusotoError,
+};
+use rusoto_credential::StaticProvider;
+use rusoto_s3::{
+    CommonPrefix, GetObjectError, GetObjectRequest, ListObjectsV2Error, ListObjectsV2Request,
+    Object as S3Object, S3Client, S3,
+};
+use std::io;
 
 pub struct Transport {
     bucket: String,
-    s3: S3Client<Credentials, Client>,
+    s3: S3Client,
 }
 
 impl Transport {
-    pub fn new(bucket: &str, key_id: &str, secret: &str, region: Region) -> Transport {
-        let creds = Credentials {
-            access_key_id: key_id.to_string(),
-            secret_key: secret.to_string(),
-        };
+    pub fn new(
+        bucket: &str,
+        key_id: &str,
+        secret: &str,
+        region: Region,
+    ) -> Result<Transport, TlsError> {
+        let creds = StaticProvider::new(key_id.to_string(), secret.to_string(), None, None);
+        let dispatcher = HttpClient::new()?;
+        let client = S3Client::new_with(dispatcher, creds, region);
 
-        let dispatcher = default_tls_client().unwrap();
-        let client = S3Client::new(dispatcher, creds, region);
-
-        Transport {
+        let t = Transport {
             bucket: bucket.to_string(),
             s3: client,
-        }
+        };
+
+        Ok(t)
     }
 }
 
 impl super::Store for Transport {
-    fn list_contents(&self, prefix: &str, flags: Include) ->
-            Result<Vec<StorageObject>, TransportError> {
-        let delimiter = '/';
-        let mut continuation_token = None;
-        let mut result = Vec::new();
-
-        fn translate_err(e: ListObjectsV2Error) -> TransportError {
-            match e {
-                ListObjectsV2Error::NoSuchBucket(_) => TransportError::NoSuchObject,
-                ListObjectsV2Error::HttpDispatch(_) => TransportError::NetworkError,
-                ListObjectsV2Error::Credentials(_) => TransportError::AccessDenied,
-                _ => {
-                    error!("Unexpected error: {:?}", e);
-                    TransportError::UnknownError
-                }
+    fn list_contents(
+        &self,
+        prefix: &str,
+        flags: Include,
+    ) -> super::StorageFuture<Vec<StorageObject>> {
+        fn object_from_pfx(pfx: CommonPrefix) -> StorageObject {
+            StorageObject {
+                key: Key::from(pfx.prefix.unwrap_or_default()),
+                size: 0,
             }
         }
 
-        loop {
-            let req = ListObjectsV2Request {
-                bucket: self.bucket.clone(),
-                continuation_token,
-                delimiter: Some(delimiter.to_string()),
-                prefix: Some(String::from(prefix)),
-                ..ListObjectsV2Request::default()
-            };
-
-            let response = self.s3.list_objects_v2(&req)
-                .map_err(translate_err)?;
-
-            if flags.contains(Include::DIRS) {
-                if let Some(prefixes) = response.common_prefixes {
-                    result.extend(
-                        prefixes.into_iter()
-                            .map(|pfx| StorageObject {
-                                key: Key::from(pfx.prefix.unwrap_or(String::from(""))),
-                                size: 0
-                            })
-                    );
-                }
+        fn object_from_content(obj: S3Object) -> StorageObject {
+            StorageObject {
+                key: Key::from(obj.key.unwrap_or_default()),
+                size: obj.size.unwrap_or(0),
             }
+        }
 
-            if flags.contains(Include::FILES) {
-                if let Some(objects) = response.contents {
-                    result.extend(
-                        objects.into_iter()
-                            .map(|obj| super::StorageObject {
-                                key: Key::from(obj.key.unwrap_or(String::from(""))),
-                                size: obj.size.unwrap_or(0)
-                            })
-                    );
+        let s3_client = self.s3.clone();
+        let bucket = self.bucket.clone();
+        let delimiter = '/'.to_string();
+        let search_prefix = prefix.to_string();
+
+        let f = loop_fn(
+            (Vec::new(), None),
+            move |(mut result, continuation_token)| {
+                let req = ListObjectsV2Request {
+                    bucket: bucket.clone(),
+                    continuation_token,
+                    delimiter: Some(delimiter.clone()),
+                    prefix: Some(search_prefix.clone()),
+                    ..ListObjectsV2Request::default()
                 };
-            }
 
-            if response.is_truncated.unwrap_or(false) {
-                continuation_token = response.continuation_token;
-            } else {
-                break
-            }
-        }
+                s3_client
+                    .list_objects_v2(req)
+                    .map_err(|e| match e {
+                        RusotoError::Service(ListObjectsV2Error::NoSuchBucket(_)) => {
+                            StorageError::NoSuchObject
+                        }
+                        _ => {
+                            error!("Unexpected error: {:?}", e);
+                            StorageError::UnknownError
+                        }
+                    })
+                    .and_then(move |response| {
+                        if flags.contains(Include::DIRS) {
+                            if let Some(prefixes) = response.common_prefixes {
+                                result.extend(prefixes.into_iter().map(object_from_pfx));
+                            }
+                        }
 
-        Ok(result)
+                        if flags.contains(Include::FILES) {
+                            if let Some(objects) = response.contents {
+                                result.extend(objects.into_iter().map(object_from_content));
+                            }
+                        }
+
+                        if response.is_truncated.unwrap_or(false) {
+                            Ok(Loop::Continue((result, response.continuation_token)))
+                        } else {
+                            Ok(Loop::Break(result))
+                        }
+                    })
+            },
+        );
+
+        Box::new(f)
     }
 
-    fn get(&self, key: Key) -> Result<Vec<u8>, TransportError> {
-        fn to_transport_error(e: GetObjectError) -> TransportError {
-            match e {
-                GetObjectError::NoSuchKey(_) => TransportError::NoSuchObject,
-                GetObjectError::HttpDispatch(_) => TransportError::NetworkError,
-                GetObjectError::Credentials(_) => TransportError::AccessDenied,
-                _ => {
-                    error!("Unexpected error: {:?}", e);
-                    TransportError::UnknownError
-                }
-            }
-        }
-
+    fn get(&self, key: Key) -> super::StorageFuture<Vec<u8>> {
+        debug!("Fetching object for key {:?}", key);
         let req = GetObjectRequest {
             bucket: self.bucket.clone(),
             key: key.to_string(),
             ..GetObjectRequest::default()
         };
 
-        let response = self.s3.get_object(&req).map_err(to_transport_error)?;
-        let mut content = Vec::new();
-        if let Some(mut body) = response.body {
-            body.read_to_end(&mut content);
-        }
+        let f = self
+            .s3
+            .get_object(req)
+            .map_err(|e| match e {
+                RusotoError::Service(GetObjectError::NoSuchKey(_)) => StorageError::NoSuchObject,
+                _ => {
+                    error!("Unexpected error: {:?}", e);
+                    StorageError::UnknownError
+                }
+            })
+            .and_then(|response| match response.body {
+                Some(body) => {
+                    debug!("Reading object body...");
+                    fn append_body(
+                        mut acc: Vec<u8>,
+                        bytes: Bytes,
+                    ) -> impl Future<Item = Vec<u8>, Error = io::Error> {
+                        acc.extend(bytes);
+                        future::ok(acc)
+                    };
 
-        Ok(content)
+                    let collect_body = body
+                        .fold(Vec::new(), append_body)
+                        .map_err(|_| StorageError::NetworkError);
+
+                    Either::A(collect_body)
+                }
+                None => Either::B(future::ok(Vec::new())),
+            });
+
+        Box::new(f)
     }
 }
 
-
 #[cfg(test)]
-mod test {
-
-}
+mod test {}

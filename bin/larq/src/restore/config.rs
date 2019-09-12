@@ -1,17 +1,17 @@
+use log::{debug, error};
+use rusoto_core::Region;
+use serde::{Deserialize, Serialize};
+use std::error::Error;
+use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
-use std::fs::File;
-use std::error::Error;
-use rusoto_core::Region;
 use toml::{self, Value};
-use serde;
-use log;
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Clone)]
-#[serde(rename_all="lowercase")]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum StorageClass {
     Standard,
-    Glacier
+    Glacier,
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Clone)]
@@ -20,9 +20,8 @@ pub struct Config {
     pub access_key_id: String,
     pub secret_key: String,
     pub region: String,
-    pub bucket_name: String
+    pub bucket_name: String,
 }
-
 
 #[derive(Debug)]
 pub enum ConfigErr {
@@ -32,9 +31,8 @@ pub enum ConfigErr {
 
 pub fn load(filename: &Path) -> Result<Config, ConfigErr> {
     debug!("Loading config from {:?}", filename);
-    let mut f =
-        File::open(filename).map_err(ConfigErr::File)?;
-    let mut content  = String::new();
+    let mut f = File::open(filename).map_err(ConfigErr::File)?;
+    let mut content = String::new();
 
     f.read_to_string(&mut content).map_err(ConfigErr::File)?;
 
@@ -44,11 +42,10 @@ pub fn load(filename: &Path) -> Result<Config, ConfigErr> {
 fn parse(text: &str) -> Result<Config, ConfigErr> {
     debug!("Parsing config content");
 
-    toml::from_str::<Config>(text)
-        .map_err(|e| {
-            error!("Parsing error: {}", e.description());
-            ConfigErr::Format(e.description().to_string())
-        })
+    toml::from_str::<Config>(text).map_err(|e| {
+        error!("Parsing error: {}", e.description());
+        ConfigErr::Format(e.description().to_string())
+    })
 }
 
 #[cfg(test)]
@@ -57,14 +54,18 @@ mod test {
 
     #[test]
     fn parse_storage_class_standard() {
-        assert_eq!(StorageClass::Standard,
-                   toml::from_str::<StorageClass>("\"standard\"").unwrap());
+        assert_eq!(
+            StorageClass::Standard,
+            toml::from_str::<StorageClass>("\"standard\"").unwrap()
+        );
     }
 
     #[test]
     fn parse_storage_class_glacier() {
-        assert_eq!(StorageClass::Glacier,
-                   toml::from_str::<StorageClass>("\"glacier\"").unwrap());
+        assert_eq!(
+            StorageClass::Glacier,
+            toml::from_str::<StorageClass>("\"glacier\"").unwrap()
+        );
     }
 
     #[test]
@@ -82,7 +83,7 @@ mod test {
             access_key_id: "ACCESS_KEY_ID".to_string(),
             secret_key: "secret_key".to_string(),
             class: StorageClass::Glacier,
-            bucket_name: "some-bucket".to_string()
+            bucket_name: "some-bucket".to_string(),
         };
 
         assert_eq!(expected, cfg)
