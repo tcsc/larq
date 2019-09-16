@@ -4,6 +4,13 @@ use std::ops::Div;
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 pub struct Key(String);
 
+impl Key {
+    pub fn as_str(&self) -> &str {
+        let &Key(ref s) = self;
+        s.as_str()
+    }
+}
+
 impl ToString for Key {
     fn to_string(&self) -> String {
         let &Key(ref s) = self;

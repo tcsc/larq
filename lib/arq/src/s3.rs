@@ -42,6 +42,13 @@ impl Transport {
 }
 
 impl super::Store for Transport {
+    // fn clone(&self) -> Box<dyn super::Store> {
+    //     Box::new(Transport {
+    //         bucket: self.bucket.clone(),
+    //         s3: self.s3.clone()
+    //     })
+    // }
+
     fn list_contents(
         &self,
         prefix: &str,

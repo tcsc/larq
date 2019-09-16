@@ -2,6 +2,7 @@ mod key;
 mod repository;
 pub mod s3;
 //mod encryption;
+mod gather;
 
 pub use key::Key;
 pub use repository::Repository;
@@ -35,8 +36,10 @@ bitflags! {
     }
 }
 
-pub trait Store {
+pub trait Store: Send + Sync {
     fn list_contents(&self, path: &str, flags: Include) -> StorageFuture<Vec<StorageObject>>;
 
     fn get(&self, key: Key) -> StorageFuture<Vec<u8>>;
+
+    //  fn clone(&self) -> Box<dyn Store>;
 }

@@ -8,6 +8,8 @@ use std::io;
 use std::process::exit;
 use tokio::prelude::*;
 
+use std::sync::Arc;
+
 fn main() {
     use cli::Args;
 
@@ -34,13 +36,18 @@ fn main() {
         rusoto_core::Region::ApSoutheast2,
     )
     .expect("Transport construction");
-    let repo = arq::Repository::new(&args.computer_id, Box::new(transport));
+    let repo = arq::Repository::new(&args.computer_id, Arc::new(transport));
 
     let mut rt = tokio::runtime::Runtime::new().expect("Runtime");
 
-    debug!("fetching repo salt...");
-    match rt.block_on(repo.salt()) {
-        Ok(s) => info!("Salt: {:?}", s),
+    debug!("listing computers/...");
+    match rt.block_on(repo.list_computers()) {
+        Ok(v) => {
+            info!("Yay! - list is {} long", v.len());
+            for c in v.iter() {
+                info!("user: {}, name: {}", c.user, c.computer)
+            }
+        }
         Err(e) => error!("Listing failed with error: {:?}", e),
     }
 }
