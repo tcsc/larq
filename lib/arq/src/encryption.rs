@@ -1,9 +1,6 @@
-use ring::pbkdf2;
-use ring::{
-    digest::{Context, Digest, digest, SHA256, SHA1_FOR_LEGACY_USE_ONLY as SHA1},
-//    pbkdf2::SHA256,
-};
 use ring::aead;
+use ring::digest::{digest, Context, Digest, SHA1_FOR_LEGACY_USE_ONLY as SHA1, SHA256};
+use ring::pbkdf2;
 
 const PBKDF2_ITERATIONS: usize = 1000;
 const AES_KEY_LEN_BYTES: usize = 32;
@@ -48,12 +45,13 @@ struct AesKey {
     iv: Vec<u8>,
 }
 
-fn mk_aes_key(input_key: &[u8],
-              salt: &[u8],
-              iterations: usize,
-              key_len: usize,
-              iv_len: usize)
-              -> AesKey {
+fn mk_aes_key(
+    input_key: &[u8],
+    salt: &[u8],
+    iterations: usize,
+    key_len: usize,
+    iv_len: usize,
+) -> AesKey {
     let algorithm = &SHA1;
     let digest_len = algorithm.block_len;
     let bytes_required = key_len + iv_len;
@@ -87,17 +85,22 @@ fn mk_aes_key(input_key: &[u8],
 impl CryptoCtx {
     fn new(password: &str, salt: &[u8]) -> CryptoCtx {
         let mut key1 = [0; AES_KEY_LEN_BYTES + AES_IV_LEN_BYTES];
-        pbkdf2::derive(SHA256,
-                       PBKDF2_ITERATIONS as u32,
-                       salt,
-                       password.as_bytes(),
-                       &mut key1);
+        pbkdf2::derive(
+            SHA256,
+            PBKDF2_ITERATIONS as u32,
+            salt,
+            password.as_bytes(),
+            &mut key1,
+        );
 
         // split the generated key into the AES key and initialisaton vector
-        let AesKey {key, iv} = mk_aes_key(&key1, salt,
-                                          PBKDF2_ITERATIONS,
-                                          AES_KEY_LEN_BYTES,
-                                          AES_IV_LEN_BYTES);
+        let AesKey { key, iv } = mk_aes_key(
+            &key1,
+            salt,
+            PBKDF2_ITERATIONS,
+            AES_KEY_LEN_BYTES,
+            AES_IV_LEN_BYTES,
+        );
 
         assert!(false);
         CryptoCtx {}
