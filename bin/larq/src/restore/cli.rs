@@ -1,50 +1,40 @@
-use argparse::{ArgumentParser, Parse, Store, StoreTrue};
+use gumdrop::Options;
 use std::fs::canonicalize;
 use std::io::Write;
 use std::path::PathBuf;
+use uuid::Uuid;
 
-pub struct Args {
-    pub config_file: PathBuf,
-    pub computer_id: String,
-    pub verbose: bool,
+#[derive(Debug, Options)]
+pub enum Command {
+    ListComputers (ListComputerOpts),
+    ListFolders (ListFolderOpts)
 }
 
-impl Args {
-    pub fn parse(
-        args: Vec<String>,
-        stdout: &mut dyn Write,
-        stderr: &mut dyn Write,
-    ) -> Result<Args, i32> {
-        let mut result = Args {
-            config_file: PathBuf::new(),
-            computer_id: String::new(),
-            verbose: false,
-        };
+#[derive(Debug, Options)]
+pub struct ListComputerOpts {}
 
-        let rval = {
-            let mut ap = ArgumentParser::new();
-            ap.set_description("Restore Arq backups");
-            ap.refer(&mut result.config_file).add_option(
-                &["-c", "--config-file"],
-                Parse,
-                "Use config file",
-            );
+#[derive(Debug, Options)]
+pub struct ListFolderOpts {
+    #[options(help = "The computer to operate on", meta = "UUID")]
+    pub computer: Uuid
+}
 
-            ap.refer(&mut result.verbose)
-                .add_option(&["-v", "--verbose"], StoreTrue, "Say more");
+#[derive(Debug, Options)]
+pub struct Args {
+    #[options(help = "Use config file")]
+    pub config_file: PathBuf,
 
-            ap.refer(&mut result.computer_id).add_option(
-                &["-i", "--computer-id"],
-                Store,
-                "ID of compoter whose backup we want to restore",
-            );
+    #[options(help = "Be more verbose")]
+    pub verbose: bool,
 
-            ap.parse(args, stdout, stderr)
-        };
+    #[options(help = "Print help message and exit")]
+    help: bool,
 
-        rval.map(|_| result)
-    }
+    #[options(command)]
+    pub cmd: Option<Command>
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+
+}

@@ -1,11 +1,9 @@
 use log::{debug, error};
-use rusoto_core::Region;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
-use toml::{self, Value};
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]

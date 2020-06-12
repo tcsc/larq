@@ -12,24 +12,24 @@ use uuid::Uuid;
  * Wraps up access to a backup repository
  */
 pub struct Repository {
-    root_prefix: Key,
     transport: Arc<dyn Store>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Computer {
+    #[serde(skip)]
+    pub id: Uuid,
+
     #[serde(rename = "userName")]
     pub user: String,
+
     #[serde(rename = "computerName")]
     pub computer: String,
 }
 
 impl Repository {
-    pub fn new(computer_id: &str, transport: Arc<dyn Store>) -> Repository {
-        let root_prefix = Key::from(computer_id);
-        //let salt = transport.get(root_prefix.clone() / "salt");
+    pub fn new(transport: Arc<dyn Store>) -> Repository {
         Repository {
-            root_prefix,
             transport,
         }
     }
@@ -56,10 +56,13 @@ impl Repository {
                     })
                     .map(move |(id, computer_key)| {
                         // fetch and parse the computerinfo file
-                        t.get(computer_key / "computerinfo").and_then(|content| {
+                        t.get(computer_key / "computerinfo").and_then(move |content| {
                             let c = Cursor::new(content);
                             match plist::from_reader(c) {
-                                Ok(computer) => future::ok(computer),
+                                Ok(computer) => {
+                                    let result = Computer {id, ..computer};
+                                    future::ok(result)
+                                },
                                 Err(_) => future::err(StorageError::UnknownError),
                             }
                         })
@@ -75,5 +78,16 @@ impl Repository {
             })
     }
 
-    pub fn list_backup_sets(&self) {}
+
+    pub fn list_folders(&self, computer_id: &Uuid) -> impl Future<Item = (), Error = ()> {
+        let computer_root = computer_id
+            .to_hyphenated_ref().encode_upper(&mut Uuid::encode_buffer())
+            .to_owned();
+        let path = format!("{}/buckets/", computer_root);
+        self.transport.list_contents(&path, Include::FILES)
+            .inspect(|fs| { info!("key: {:?}", fs) })
+            .map(|_| ())
+            .map_err(|_| ())
+    }
+
 }

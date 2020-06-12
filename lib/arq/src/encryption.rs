@@ -1,10 +1,9 @@
-use ring::aead;
-use ring::digest::{digest, Context, Digest, SHA1_FOR_LEGACY_USE_ONLY as SHA1, SHA256};
-use ring::pbkdf2;
+use ring::{digest, pbkdf2};
 
-const PBKDF2_ITERATIONS: usize = 1000;
-const AES_KEY_LEN_BYTES: usize = 32;
-const AES_IV_LEN_BYTES: usize = 16;
+static CredentialAlgorithm: pbkdf2::Algorithm = pbkdf2::PBKDF2_HMAC_SHA256;
+const CredentialSize: usize = digest::SHA256_OUTPUT_LEN;
+pub type Credentials = [u8; CredentialSize];
+const PBKDF2_ITERATIONS: usize = 2000;
 
 struct CryptoCtx {}
 
@@ -45,7 +44,7 @@ struct AesKey {
     iv: Vec<u8>,
 }
 
-fn mk_aes_key(
+fn bytesToKey(
     input_key: &[u8],
     salt: &[u8],
     iterations: usize,

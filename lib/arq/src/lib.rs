@@ -1,7 +1,7 @@
 mod key;
 mod repository;
 pub mod s3;
-//mod encryption;
+mod encryption;
 mod gather;
 
 pub use key::Key;
@@ -23,7 +23,8 @@ pub type StorageFuture<T> = Box<dyn Future<Item = T, Error = StorageError> + Sen
 /**
  * An abstract storage object managed by a storage service.
  */
-pub struct StorageObject {
+#[derive(Debug)]
+pub struct  StorageObject {
     pub key: Key,
     pub size: i64,
 }
@@ -40,6 +41,4 @@ pub trait Store: Send + Sync {
     fn list_contents(&self, path: &str, flags: Include) -> StorageFuture<Vec<StorageObject>>;
 
     fn get(&self, key: Key) -> StorageFuture<Vec<u8>>;
-
-    //  fn clone(&self) -> Box<dyn Store>;
 }
