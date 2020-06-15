@@ -1,21 +1,24 @@
 mod cli;
-mod config;
 mod cmd;
+mod config;
 
 use std::{process::exit, sync::Arc};
 
-use log::{debug, error, Level};
-use gumdrop::Options;
 use cli::{Args, Command};
+use gumdrop::Options;
+use log::{debug, error, Level};
 
 use arq::s3;
-
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse_args_default_or_exit();
 
-    let log_level = if args.verbose { Level::Debug } else { log::Level::Info };
+    let log_level = if args.verbose {
+        Level::Debug
+    } else {
+        log::Level::Info
+    };
     simple_logger::init_with_level(log_level).unwrap();
 
     debug!("Loading config from {:?}...", args.config_file);
@@ -37,12 +40,8 @@ async fn main() {
     let repo = arq::Repository::new(Arc::new(transport));
 
     let _ = match args.cmd {
-        Some(Command::ListComputers(_)) => {
-            cmd::list_computers(&repo).await
-        },
-        Some(Command::ListFolders(opts)) => {
-            cmd::list_folders(&repo, opts).await
-        },
-        None => Ok(())
+        Some(Command::ListComputers(_)) => cmd::list_computers(&repo).await,
+        Some(Command::ListFolders(opts)) => cmd::list_folders(&repo, opts).await,
+        None => Ok(()),
     };
 }

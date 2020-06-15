@@ -4,8 +4,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Options)]
 pub enum Command {
-    ListComputers (ListComputerOpts),
-    ListFolders (ListFolderOpts)
+    ListComputers(ListComputerOpts),
+    ListFolders(ListFolderOpts),
 }
 
 #[derive(Debug, Options)]
@@ -15,7 +15,7 @@ pub struct ListComputerOpts {}
 #[options(required)]
 pub struct ListFolderOpts {
     #[options(help = "The computer to operate on", meta = "UUID")]
-    pub computer: Uuid
+    pub computer: Uuid,
 }
 
 #[derive(Debug, Options)]
@@ -30,10 +30,8 @@ pub struct Args {
     help: bool,
 
     #[options(command)]
-    pub cmd: Option<Command>
+    pub cmd: Option<Command>,
 }
 
 #[cfg(test)]
-mod test {
-
-}
+mod test {}

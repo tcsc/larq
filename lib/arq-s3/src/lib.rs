@@ -1,10 +1,4 @@
-use arq_storage::{
-    Error as StorageError,
-    Include,
-    Key,
-    ObjectInfo,
-    Result as StorageResult
-};
+use arq_storage::{Error as StorageError, Include, Key, ObjectInfo, Result as StorageResult};
 use log::{debug, error};
 
 use rusoto_core::{
@@ -45,8 +39,8 @@ impl Store {
 }
 
 fn translate_list_objects_err(err: RusotoError<ListObjectsV2Error>) -> StorageError {
-    use RusotoError::Service;
     use ListObjectsV2Error::NoSuchBucket;
+    use RusotoError::Service;
 
     match err {
         Service(NoSuchBucket(_)) => StorageError::NoSuchObject,
@@ -58,8 +52,8 @@ fn translate_list_objects_err(err: RusotoError<ListObjectsV2Error>) -> StorageEr
 }
 
 fn translate_get_object_err(err: RusotoError<GetObjectError>) -> StorageError {
-    use RusotoError::Service;
     use GetObjectError::NoSuchKey;
+    use RusotoError::Service;
 
     match err {
         Service(NoSuchKey(_)) => StorageError::NoSuchObject,
@@ -73,7 +67,7 @@ fn translate_get_object_err(err: RusotoError<GetObjectError>) -> StorageError {
 async fn read_all(mut s: rusoto_core::ByteStream) -> Result<Vec<u8>, std::io::Error> {
     use futures::stream::TryStreamExt;
 
-    let mut result : Vec<u8> = Vec::new();
+    let mut result: Vec<u8> = Vec::new();
 
     while let Some(bs) = s.try_next().await? {
         result.extend_from_slice(bs.as_ref());
@@ -91,11 +85,7 @@ impl arq_storage::Store for Store {
     //     })
     // }
 
-    async fn list_contents(
-        &self,
-        prefix: &str,
-        flags: Include,
-    ) -> StorageResult<Vec<ObjectInfo>> {
+    async fn list_contents(&self, prefix: &str, flags: Include) -> StorageResult<Vec<ObjectInfo>> {
         fn object_from_pfx(pfx: CommonPrefix) -> ObjectInfo {
             ObjectInfo {
                 key: Key::from(pfx.prefix.unwrap_or_default()),
@@ -115,7 +105,7 @@ impl arq_storage::Store for Store {
         let delimiter = '/'.to_string();
         let search_prefix = prefix.to_string();
 
-        let mut result = vec!();
+        let mut result = vec![];
         let mut continuation_token = None;
         loop {
             let req = ListObjectsV2Request {
@@ -126,21 +116,20 @@ impl arq_storage::Store for Store {
                 ..ListObjectsV2Request::default()
             };
 
-            let response = s3_client.list_objects_v2(req)
+            let response = s3_client
+                .list_objects_v2(req)
                 .await
                 .map_err(translate_list_objects_err)?;
 
             if flags.contains(Include::DIRS) {
                 if let Some(prefixes) = response.common_prefixes {
-                    result.extend(
-                        prefixes.into_iter().map(object_from_pfx));
+                    result.extend(prefixes.into_iter().map(object_from_pfx));
                 }
             }
 
             if flags.contains(Include::FILES) {
                 if let Some(objects) = response.contents {
-                    result.extend(
-                        objects.into_iter().map(object_from_content));
+                    result.extend(objects.into_iter().map(object_from_content));
                 }
             }
 
@@ -151,7 +140,7 @@ impl arq_storage::Store for Store {
             continuation_token = response.continuation_token;
         }
 
-        return Ok(result)
+        return Ok(result);
     }
 
     async fn get(&self, key: Key) -> StorageResult<Vec<u8>> {
@@ -162,14 +151,17 @@ impl arq_storage::Store for Store {
             ..GetObjectRequest::default()
         };
 
-        let response = self.s3
+        let response = self
+            .s3
             .get_object(req)
             .await
             .map_err(translate_get_object_err)?;
 
         let content = match response.body {
             None => Vec::new(),
-            Some(body) => read_all(body).await.map_err(|_| StorageError::NetworkError)?
+            Some(body) => read_all(body)
+                .await
+                .map_err(|_| StorageError::NetworkError)?,
         };
 
         Ok(content)

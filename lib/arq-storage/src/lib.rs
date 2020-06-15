@@ -3,14 +3,6 @@
 mod key;
 mod store;
 
-pub use key::{
-    Key
-};
+pub use key::Key;
 
-pub use store::{
-    Error,
-    Include,
-    ObjectInfo,
-    Result,
-    Store,
-};
+pub use store::{Error, Include, ObjectInfo, Result, Store};

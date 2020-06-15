@@ -1,4 +1,3 @@
-
 use crate::key::Key;
 use bitflags::bitflags;
 use trait_async::trait_async;
@@ -32,9 +31,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[trait_async]
 pub trait Store: Send + Sync {
-    async fn list_contents(&self, path: &str, flags: Include) ->
-        Result<Vec<ObjectInfo>>;
+    async fn list_contents(&self, path: &str, flags: Include) -> Result<Vec<ObjectInfo>>;
 
-    async fn get(&self, key: Key) ->
-        Result<Vec<u8>>;
+    async fn get(&self, key: Key) -> Result<Vec<u8>>;
 }
