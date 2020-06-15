@@ -5,13 +5,14 @@ mod cmd;
 use std::{process::exit, sync::Arc};
 
 use log::{debug, error, Level};
-use futures::future;
 use gumdrop::Options;
 use cli::{Args, Command};
 
+use arq::s3;
 
-fn main() {
 
+#[tokio::main]
+async fn main() {
     let args = Args::parse_args_default_or_exit();
 
     let log_level = if args.verbose { Level::Debug } else { log::Level::Info };
@@ -26,7 +27,7 @@ fn main() {
         }
     };
 
-    let transport = arq::s3::Transport::new(
+    let transport = s3::Store::new(
         &cfg.bucket_name,
         &cfg.access_key_id,
         &cfg.secret_key,
@@ -35,13 +36,13 @@ fn main() {
     .expect("Transport construction");
     let repo = arq::Repository::new(Arc::new(transport));
 
-    let mut rt = tokio::runtime::Runtime::new().expect("Runtime");
-
-    let main_fn = match args.cmd {
-        Some(Command::ListComputers(_)) => cmd::list_computers(&repo),
-        Some(Command::ListFolders(opts)) => cmd::list_folders(&repo, opts),
-        None => Box::new(future::ok(()))
+    let _ = match args.cmd {
+        Some(Command::ListComputers(_)) => {
+            cmd::list_computers(&repo).await
+        },
+        Some(Command::ListFolders(opts)) => {
+            cmd::list_folders(&repo, opts).await
+        },
+        None => Ok(())
     };
-
-    rt.block_on(main_fn);
 }

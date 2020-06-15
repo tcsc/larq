@@ -1,15 +1,15 @@
 [package]
-name = "arq"
+name = "arq-s3"
 version = "0.1.0"
 authors = ["Trent Clarke <trent.clarke@gmail.com>"]
 edition = "2018"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
 arq-storage = { path="../arq-storage" }
-arq-s3 = { path="../arq-s3" }
 futures = "0.3"
 log="0.4"
-plist="1.0"
-ring = "0.16.14"
-serde = { version = "1.0", features = ["derive"] }
-uuid = "0.8"
+rusoto_core="0.44"
+rusoto_s3="0.44"
+trait-async = "0.1"

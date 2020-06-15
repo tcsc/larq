@@ -1,10 +1,13 @@
 use log::{error, info};
 use arq::Repository;
-use futures::{Future, future};
 use crate::cli::ListFolderOpts;
 
-pub fn list_folders(repo: &Repository, args: ListFolderOpts) -> Box<dyn Future<Item = (), Error = ()> + Send>
+pub async fn list_folders(repo: &Repository, args: ListFolderOpts) -> Result<(), ()>
 {
-    let f = repo.list_folders(&args.computer);
-    Box::new(f)
+    let folders = repo.list_folders(&args.computer).await;
+    for f in folders.iter() {
+        info!("{:?}", f);
+    }
+
+    Ok(())
 }

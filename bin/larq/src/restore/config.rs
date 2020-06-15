@@ -41,8 +41,8 @@ fn parse(text: &str) -> Result<Config, ConfigErr> {
     debug!("Parsing config content");
 
     toml::from_str::<Config>(text).map_err(|e| {
-        error!("Parsing error: {}", e.description());
-        ConfigErr::Format(e.description().to_string())
+        error!("Parsing error: {}", e);
+        ConfigErr::Format(e.to_string())
     })
 }
 

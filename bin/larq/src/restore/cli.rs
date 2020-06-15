@@ -1,6 +1,4 @@
 use gumdrop::Options;
-use std::fs::canonicalize;
-use std::io::Write;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -14,6 +12,7 @@ pub enum Command {
 pub struct ListComputerOpts {}
 
 #[derive(Debug, Options)]
+#[options(required)]
 pub struct ListFolderOpts {
     #[options(help = "The computer to operate on", meta = "UUID")]
     pub computer: Uuid
