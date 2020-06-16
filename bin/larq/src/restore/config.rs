@@ -1,6 +1,5 @@
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;

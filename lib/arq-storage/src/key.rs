@@ -9,6 +9,10 @@ impl Key {
         let &Key(ref s) = self;
         s.as_str()
     }
+
+    pub fn into_string(self) -> String {
+        self.0
+    }
 }
 
 impl ToString for Key {
@@ -44,6 +48,18 @@ impl<'a> Div<&'a str> for Key {
 
     fn div(self, rhs: &'a str) -> Key {
         let Key(mut s) = self;
+        s.reserve(rhs.len() + 1);
+        s.push('/');
+        s += rhs;
+        Key(s)
+    }
+}
+
+impl<'a> Div<&'a str> for &Key {
+    type Output = Key;
+
+    fn div(self, rhs: &'a str) -> Key {
+        let mut s = self.0.to_owned();
         s.reserve(rhs.len() + 1);
         s.push('/');
         s += rhs;

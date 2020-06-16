@@ -44,4 +44,6 @@ async fn main() {
         Some(Command::ListFolders(opts)) => cmd::list_folders(&repo, opts).await,
         None => Ok(()),
     };
+
+    debug!("Exiting");
 }
