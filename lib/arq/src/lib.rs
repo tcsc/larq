@@ -5,7 +5,7 @@ pub mod s3 {
 }
 
 pub mod crypto {
-    pub use arq_crypto::CryptoKey;
+    pub use arq_crypto::{CryptoKey, ObjectDecrypterV1};
 }
 
 pub use repository::Repository;

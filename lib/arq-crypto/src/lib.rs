@@ -1,18 +1,13 @@
-pub mod key;
+mod key;
+mod object_decrypter;
 
 pub use key::CryptoKey;
-
-pub trait Encrypter {
-    fn encrypt(&self, buf: &[u8]) -> Result<Vec<u8>, ()>;
-}
-
-pub trait Decrypter {
-    fn decrypt(&self, buf: &[u8]) -> Result<Vec<u8>, ()>;
-}
+pub use object_decrypter::ObjectDecrypterV1;
 
 pub enum CryptoError {
     BadKey,
     MalformedData,
+    Unexpected,
 }
 
 pub trait ObjectDecrypter {

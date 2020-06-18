@@ -5,7 +5,7 @@
 //     pbkdf2::{self, PBKDF2_HMAC_SHA1},
 // };
 
-use log::error;
+use crate::CryptoError;
 use std::vec::Vec;
 
 const KEY_LEN: usize = 48;
@@ -52,17 +52,13 @@ impl CryptoKey {
             cipher,
         })
     }
-}
 
-impl super::Decrypter for CryptoKey {
-    fn decrypt(&self, buf: &[u8]) -> Result<Vec<u8>, ()> {
+    pub fn decrypt(&self, buf: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let iv = self.iv.as_ref().map(Vec::as_slice);
-        decrypt(self.cipher, &self.key[..], iv, buf).map_err(|_| ())
+        decrypt(self.cipher, &self.key[..], iv, buf).map_err(|_| CryptoError::BadKey)
     }
-}
 
-impl super::Encrypter for CryptoKey {
-    fn encrypt(&self, buf: &[u8]) -> Result<Vec<u8>, ()> {
+    pub fn encrypt(&self, buf: &[u8]) -> Result<Vec<u8>, ()> {
         let iv = self.iv.as_ref().map(Vec::as_slice);
         encrypt(self.cipher, &self.key[..], iv, buf).map_err(|_| ())
     }

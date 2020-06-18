@@ -1,4 +1,4 @@
-use arq_crypto::{CryptoKey, Decrypter};
+use arq_crypto::{CryptoKey, ObjectDecrypter};
 use arq_storage::{Error as StorageError, Include, Key as StorageKey, Store};
 
 use futures::future;
@@ -59,7 +59,7 @@ pub struct Folder {}
 async fn fetch_folder(
     store: &dyn Store,
     key: StorageKey,
-    decrypter: &dyn Decrypter,
+    decrypter: &dyn ObjectDecrypter,
 ) -> Result<Folder, RepoError> {
     info!("Fetching {:?}", key);
     // TODO - examine how to do a streaming decrypt, rather than a one-hit
@@ -69,7 +69,7 @@ async fn fetch_folder(
     let encrypted_bytes = &encrypted_object[9..];
 
     info!("decrypting {} bytes", encrypted_bytes.len());
-    let r = decrypter.decrypt(encrypted_bytes);
+    let r = decrypter.decrypt_object(encrypted_bytes);
     if let Ok(b) = r {
         info!("Ka-ching: {} bytes", b.len());
         info!("text: {}", std::str::from_utf8(&b[..]).unwrap());
@@ -126,7 +126,7 @@ impl Repository {
     pub async fn list_folders(
         &self,
         computer_id: &str,
-        decrypter: &dyn Decrypter,
+        decrypter: &dyn ObjectDecrypter,
     ) -> Result<Vec<Folder>, RepoError> {
         info!("Listing folders...");
         let path = format!("{}/buckets/", computer_id);

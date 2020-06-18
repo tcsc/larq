@@ -14,9 +14,10 @@ pub async fn list_folders(repo: &Repository, args: ListFolderOpts) -> Result<(),
     info!("{:?}", computer);
 
     let key = arq::crypto::CryptoKey::new(&args.password, "BucketPL".as_bytes()).map_err(|_| ())?;
+    let decrypter = arq::crypto::ObjectDecrypterV1::new(key);
 
     let folders = repo
-        .list_folders(&computer_id, &key)
+        .list_folders(&computer_id, &decrypter)
         .await
         .map_err(|_| ())?;
 
