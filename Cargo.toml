@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "lib/arq",
-    "lib/arq-storage",
+    "bin/larq",
+    "lib/arq-crypto",
     "lib/arq-s3",
-    "bin/larq"
+    "lib/arq-storage",
+    "lib/arq",
 ]

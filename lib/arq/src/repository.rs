@@ -1,12 +1,12 @@
-use crate::encryption::{CryptoKey, Decrypter};
+use arq_crypto::{CryptoKey, Decrypter};
 use arq_storage::{Error as StorageError, Include, Key as StorageKey, Store};
 
 use futures::future;
+use log::{error, info};
 use serde::Deserialize;
 use std::io::Cursor;
 use std::sync::Arc;
 use uuid::Uuid;
-use log::{error, info};
 /**
  * Wraps up access to a backup repository
  */
@@ -135,7 +135,6 @@ impl Repository {
             .list_contents(&path, Include::FILES)
             .await
             .map_err(RepoError::Storage)?;
-
 
         info!("Building task list");
         let tasks: Vec<_> = folder_buckets

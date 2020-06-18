@@ -5,8 +5,8 @@
 //     pbkdf2::{self, PBKDF2_HMAC_SHA1},
 // };
 
-use std::vec::Vec;
 use log::error;
+use std::vec::Vec;
 
 const KEY_LEN: usize = 48;
 const KEY_ITER: usize = 1000;
@@ -57,8 +57,7 @@ impl CryptoKey {
 impl super::Decrypter for CryptoKey {
     fn decrypt(&self, buf: &[u8]) -> Result<Vec<u8>, ()> {
         let iv = self.iv.as_ref().map(Vec::as_slice);
-        decrypt(self.cipher, &self.key[..], iv, buf)
-            .map_err(|_| ())
+        decrypt(self.cipher, &self.key[..], iv, buf).map_err(|_| ())
     }
 }
 
