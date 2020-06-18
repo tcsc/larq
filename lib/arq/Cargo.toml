@@ -9,7 +9,8 @@ arq-storage = { path="../arq-storage" }
 arq-s3 = { path="../arq-s3" }
 futures = "0.3"
 log="0.4"
+openssl="0.10"
 plist="1.0"
-ring = "0.16.14"
+#ring = "0.16.14"
 serde = { version = "1.0", features = ["derive"] }
 uuid = "0.8"

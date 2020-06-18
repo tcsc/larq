@@ -1,10 +1,12 @@
+use crate::encryption::{CryptoKey, Decrypter};
 use arq_storage::{Error as StorageError, Include, Key as StorageKey, Store};
+
 use futures::future;
 use serde::Deserialize;
 use std::io::Cursor;
 use std::sync::Arc;
 use uuid::Uuid;
-
+use log::{error, info};
 /**
  * Wraps up access to a backup repository
  */
@@ -51,6 +53,31 @@ async fn fetch_computer(store: &dyn Store, id: String) -> Result<Computer, RepoE
         .map_err(|_| RepoError::MalformedData)
 }
 
+#[derive(Debug)]
+pub struct Folder {}
+
+async fn fetch_folder(
+    store: &dyn Store,
+    key: StorageKey,
+    decrypter: &dyn Decrypter,
+) -> Result<Folder, RepoError> {
+    info!("Fetching {:?}", key);
+    // TODO - examine how to do a streaming decrypt, rather than a one-hit
+    // buffered decrypt
+    let encrypted_object = store.get(key).await.map_err(RepoError::Storage)?;
+
+    let encrypted_bytes = &encrypted_object[9..];
+
+    info!("decrypting {} bytes", encrypted_bytes.len());
+    let r = decrypter.decrypt(encrypted_bytes);
+    if let Ok(b) = r {
+        info!("Ka-ching: {} bytes", b.len());
+        info!("text: {}", std::str::from_utf8(&b[..]).unwrap());
+    }
+
+    Ok(Folder {})
+}
+
 impl Repository {
     pub fn new(store: Arc<dyn Store>) -> Repository {
         Repository { store }
@@ -71,7 +98,7 @@ impl Repository {
         // futures that do the work of pulling them down and parsing them
         // into computer info
         let tasks: Vec<_> = folders
-            .iter()
+            .into_iter()
             .filter_map(|d| {
                 // remove trailing delimiter & attempt to parse as a
                 // UUID. Unsucesful attempts are filtered out of the
@@ -90,20 +117,45 @@ impl Repository {
         // that failed
         let result = future::join_all(tasks)
             .await
-            .drain(..)
+            .into_iter()
             .filter_map(|x| x.ok())
             .collect();
         Ok(result)
     }
 
-    pub async fn list_folders(&self, computer_id: &str) -> Result<Vec<StorageKey>, ()> {
+    pub async fn list_folders(
+        &self,
+        computer_id: &str,
+        decrypter: &dyn Decrypter,
+    ) -> Result<Vec<Folder>, RepoError> {
+        info!("Listing folders...");
         let path = format!("{}/buckets/", computer_id);
-        let folders = self
+        let folder_buckets = self
             .store
             .list_contents(&path, Include::FILES)
             .await
-            .map_err(|_| ())?;
+            .map_err(RepoError::Storage)?;
 
-        Ok(folders.iter().map(|obj| obj.key.clone()).collect())
+
+        info!("Building task list");
+        let tasks: Vec<_> = folder_buckets
+            .into_iter()
+            .map(|obj| fetch_folder(self.store.as_ref(), obj.key, decrypter))
+            .collect();
+
+        info!("Spawning {} subtasks", tasks.len());
+        let folders = future::join_all(tasks).await;
+
+        info!("Collating resuts");
+        let mut result = Vec::with_capacity(folders.len());
+        for maybe_folder in folders.into_iter() {
+            if let Err(e) = maybe_folder {
+                error!("Kaboom: {:?}", e);
+                return Err(RepoError::MalformedData);
+            }
+            result.push(maybe_folder.unwrap());
+        }
+
+        Ok(result)
     }
 }

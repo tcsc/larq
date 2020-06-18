@@ -16,6 +16,9 @@ pub struct ListComputerOpts {}
 pub struct ListFolderOpts {
     #[options(help = "The computer to operate on", meta = "UUID")]
     pub computer: Uuid,
+
+    #[options(help = "Encryption password", meta = "PWD")]
+    pub password: String,
 }
 
 #[derive(Debug, Options)]

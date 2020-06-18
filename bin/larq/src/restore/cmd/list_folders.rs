@@ -13,9 +13,9 @@ pub async fn list_folders(repo: &Repository, args: ListFolderOpts) -> Result<(),
     let computer = repo.get_computer(&computer_id).await.map_err(|_| ())?;
     info!("{:?}", computer);
 
-    let folders = repo.list_folders(&computer_id).await.map_err(|_| ())?;
-    for f in folders.iter() {
-        info!("{:?}", f);
-    }
+    let key = arq::encryption::CryptoKey::new(&args.password, "BucketPL".as_bytes()).map_err(|_| ())?;
+
+    let folders = repo.list_folders(&computer_id, &key).await.map_err(|_| ())?;
+
     Ok(())
 }

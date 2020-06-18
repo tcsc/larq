@@ -1,4 +1,4 @@
-mod encryption;
+pub mod encryption;
 mod repository;
 
 pub mod s3 {
