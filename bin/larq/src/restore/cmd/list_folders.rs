@@ -21,5 +21,9 @@ pub async fn list_folders(repo: &Repository, args: ListFolderOpts) -> Result<(),
         .await
         .map_err(|_| ())?;
 
+    for f in folders.iter() {
+        info!("F: {:?}", f);
+    }
+
     Ok(())
 }

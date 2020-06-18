@@ -1,12 +1,12 @@
-use arq_crypto::{CryptoKey, ObjectDecrypter};
-use arq_storage::{Error as StorageError, Include, Key as StorageKey, Store};
-
 use futures::future;
-use log::{error, info};
-use serde::Deserialize;
-use std::io::Cursor;
+use log::{debug, error, info};
 use std::sync::Arc;
 use uuid::Uuid;
+
+use crate::{computer::Computer, folder::Folder};
+use arq_crypto::ObjectDecrypter;
+use arq_storage::{Error as StorageError, Include, Key as StorageKey, Store};
+
 /**
  * Wraps up access to a backup repository
  */
@@ -14,25 +14,11 @@ pub struct Repository {
     store: Arc<dyn Store>,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct Computer {
-    #[serde(skip)]
-    pub id: String,
-
-    #[serde(skip)]
-    pub salt: Vec<u8>,
-
-    #[serde(rename = "userName")]
-    pub user: String,
-
-    #[serde(rename = "computerName")]
-    pub computer: String,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum RepoError {
     Storage(StorageError),
     MalformedData,
+    CryptoError // probably bad key
 }
 
 async fn fetch_computer(store: &dyn Store, id: String) -> Result<Computer, RepoError> {
@@ -44,7 +30,7 @@ async fn fetch_computer(store: &dyn Store, id: String) -> Result<Computer, RepoE
     .await
     .map_err(RepoError::Storage)?;
 
-    plist::from_reader(Cursor::new(info))
+    plist::from_bytes(&info[..])
         .map(|cmp| Computer {
             id: machine_key.into_string(),
             salt,
@@ -53,29 +39,24 @@ async fn fetch_computer(store: &dyn Store, id: String) -> Result<Computer, RepoE
         .map_err(|_| RepoError::MalformedData)
 }
 
-#[derive(Debug)]
-pub struct Folder {}
-
 async fn fetch_folder(
     store: &dyn Store,
     key: StorageKey,
     decrypter: &dyn ObjectDecrypter,
 ) -> Result<Folder, RepoError> {
-    info!("Fetching {:?}", key);
+    debug!("Fetching {:?}", key);
     // TODO - examine how to do a streaming decrypt, rather than a one-hit
     // buffered decrypt
     let encrypted_object = store.get(key).await.map_err(RepoError::Storage)?;
 
-    let encrypted_bytes = &encrypted_object[9..];
+    debug!("decrypting {}-byte object", encrypted_object.len());
+    let obj = decrypter.decrypt_object(&encrypted_object[..])
+        .map_err(|_| RepoError::CryptoError)?;
 
-    info!("decrypting {} bytes", encrypted_bytes.len());
-    let r = decrypter.decrypt_object(encrypted_bytes);
-    if let Ok(b) = r {
-        info!("Ka-ching: {} bytes", b.len());
-        info!("text: {}", std::str::from_utf8(&b[..]).unwrap());
-    }
+    drop(encrypted_object);
 
-    Ok(Folder {})
+    plist::from_bytes(&obj[..])
+        .map_err(|_| RepoError::MalformedData)
 }
 
 impl Repository {

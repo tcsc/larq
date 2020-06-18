@@ -6,7 +6,7 @@ use std::{process::exit, sync::Arc};
 
 use cli::{Args, Command};
 use gumdrop::Options;
-use log::{debug, error, Level};
+use log::{debug, error, info, Level};
 
 use arq::s3;
 
@@ -15,7 +15,7 @@ async fn main() {
     let args = Args::parse_args_default_or_exit();
 
     let log_level = if args.verbose {
-        Level::Debug
+        Level::Trace
     } else {
         log::Level::Info
     };
@@ -45,5 +45,5 @@ async fn main() {
         None => Ok(()),
     };
 
-    debug!("Exiting");
+    info!("Exiting...");
 }
