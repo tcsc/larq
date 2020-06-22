@@ -1,5 +1,6 @@
 use crate::{CryptoError, CryptoKey, ObjectDecrypter};
 
+#[derive(Clone)]
 pub struct ObjectDecrypterV1 {
     key: CryptoKey,
 }

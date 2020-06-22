@@ -1,9 +1,13 @@
 use std::path::PathBuf;
 
 use serde::Deserialize;
+use uuid::Uuid;
 
 #[derive(Deserialize, Debug)]
 pub struct Folder {
+    #[serde(rename = "BucketUUID")]
+    id: Uuid,
+
     #[serde(rename = "BucketName")]
     name: String,
 
@@ -18,6 +22,7 @@ mod test {
     #[test]
     fn test_parse() {
         use std::path::PathBuf;
+        use uuid::Uuid;
 
         let text = r#"
         <plist version="1.0">
@@ -53,6 +58,8 @@ mod test {
         </plist>"#;
 
         let f: Folder = plist::from_bytes(text.as_bytes()).unwrap();
+        let folder_id = Uuid::parse_str("408E376B-ECF7-4688-902A-1E7671BC5B9A").unwrap();
+        assert_eq!(f.id, folder_id);
         assert_eq!(f.name, "company");
         assert_eq!(f.local_path, PathBuf::from("/Users/stefan/src/company"));
     }

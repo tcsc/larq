@@ -10,8 +10,8 @@ pub async fn list_computers(repo: &Repository) -> Result<(), ()> {
 
     for c in computers.iter() {
         info!(
-            "{{id: {},\n user: {},\n name: {},\n salt: {:?}\n}}",
-            c.id, c.user, c.computer, c.salt
+            "{{id: {},\n user: {},\n name: {}\n}}",
+            c.id, c.user, c.computer
         )
     }
 

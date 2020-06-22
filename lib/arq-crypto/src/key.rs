@@ -17,6 +17,7 @@ use openssl::{
     symm::{decrypt, encrypt, Cipher},
 };
 
+#[derive(Clone)]
 pub struct CryptoKey {
     cipher: Cipher,
     key: Vec<u8>,

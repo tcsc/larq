@@ -2,16 +2,15 @@ mod cli;
 mod cmd;
 mod config;
 
-use std::{process::exit, sync::Arc};
-
-use cli::{Args, Command};
 use gumdrop::Options;
 use log::{debug, error, info, Level};
+use std::{process::exit, sync::Arc};
 
 use arq::s3;
+use cli::{Args, Command};
+use config::Config;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let args = Args::parse_args_default_or_exit();
 
     let log_level = if args.verbose {
@@ -30,6 +29,16 @@ async fn main() {
         }
     };
 
+    if let Some(cmd) = args.cmd {
+        let mut runtime = tokio::runtime::Runtime::new().unwrap();
+        let result = runtime.block_on(dispatch_cmd(&cfg, &args.password, cmd));
+
+        drop(runtime);
+        exit(result);
+    }
+}
+
+async fn dispatch_cmd(cfg: &Config, secret: &str, cmd: Command) -> i32 {
     let transport = s3::Store::new(
         &cfg.bucket_name,
         &cfg.access_key_id,
@@ -37,13 +46,13 @@ async fn main() {
         rusoto_core::Region::ApSoutheast2,
     )
     .expect("Transport construction");
-    let repo = arq::Repository::new(Arc::new(transport));
+    let repo = arq::Repository::new(secret, Arc::new(transport));
 
-    let _ = match args.cmd {
-        Some(Command::ListComputers(_)) => cmd::list_computers(&repo).await,
-        Some(Command::ListFolders(opts)) => cmd::list_folders(&repo, opts).await,
-        None => Ok(()),
+    let result = match cmd {
+        Command::ListComputers(_) => cmd::list_computers(&repo).await,
+        Command::ListFolders(opts) => cmd::list_folders(&repo, opts).await,
+        Command::Restore(opts) => cmd::restore(&repo, opts).await,
     };
 
-    info!("Exiting...");
+    result.map(|_| 0).unwrap_or(1)
 }

@@ -1,74 +1,78 @@
 use futures::future;
-use log::{debug, error, info};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::{computer::Computer, folder::Folder};
-use arq_crypto::ObjectDecrypter;
-use arq_storage::{Error as StorageError, Include, Key as StorageKey, Store};
+use crate::{
+    computer::{Computer, ComputerInfo},
+    RepoError,
+};
+use arq_crypto::{CryptoKey, ObjectDecrypter, ObjectDecrypterV1};
+use arq_storage::{Include, Key as StorageKey, Store};
 
 /**
  * Wraps up access to a backup repository
  */
 pub struct Repository {
     store: Arc<dyn Store>,
+    secret: String,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum RepoError {
-    Storage(StorageError),
-    MalformedData,
-    CryptoError // probably bad key
-}
-
-async fn fetch_computer(store: &dyn Store, id: String) -> Result<Computer, RepoError> {
-    let machine_key = StorageKey::from(id);
-    let (info, salt) = future::try_join(
-        store.get(&machine_key / "computerinfo"),
-        store.get(&machine_key / "salt"),
-    )
-    .await
-    .map_err(RepoError::Storage)?;
+async fn fetch_computer_info(store: &dyn Store, id: StorageKey) -> Result<ComputerInfo, RepoError> {
+    let info = store
+        .get(&id / "computerinfo")
+        .await
+        .map_err(RepoError::Storage)?;
 
     plist::from_bytes(&info[..])
-        .map(|cmp| Computer {
-            id: machine_key.into_string(),
-            salt,
+        .map(|cmp| ComputerInfo {
+            id: id.to_string(),
             ..cmp
         })
         .map_err(|_| RepoError::MalformedData)
 }
 
-async fn fetch_folder(
-    store: &dyn Store,
-    key: StorageKey,
-    decrypter: &dyn ObjectDecrypter,
-) -> Result<Folder, RepoError> {
-    debug!("Fetching {:?}", key);
-    // TODO - examine how to do a streaming decrypt, rather than a one-hit
-    // buffered decrypt
-    let encrypted_object = store.get(key).await.map_err(RepoError::Storage)?;
-
-    debug!("decrypting {}-byte object", encrypted_object.len());
-    let obj = decrypter.decrypt_object(&encrypted_object[..])
-        .map_err(|_| RepoError::CryptoError)?;
-
-    drop(encrypted_object);
-
-    plist::from_bytes(&obj[..])
-        .map_err(|_| RepoError::MalformedData)
-}
-
 impl Repository {
-    pub fn new(store: Arc<dyn Store>) -> Repository {
-        Repository { store }
+    pub fn new(secret: &str, store: Arc<dyn Store>) -> Repository {
+        Repository {
+            secret: secret.to_owned(),
+            store,
+        }
     }
 
-    pub async fn get_computer(&self, id: &str) -> Result<Computer, RepoError> {
-        fetch_computer(self.store.as_ref(), id.to_owned()).await
+    pub async fn get_computer(&self, id: String) -> Result<Computer, RepoError> {
+        let machine_key = StorageKey::from(id);
+        let info = fetch_computer_info(self.store.as_ref(), machine_key.clone()).await?;
+
+        let salt = self
+            .store
+            .get(machine_key / "salt")
+            .await
+            .map_err(RepoError::Storage)?;
+
+        let object_decrypter = CryptoKey::new(&self.secret, &salt[..])
+            .map(ObjectDecrypterV1::new)
+            .map(|d| Arc::new(d) as Arc<dyn ObjectDecrypter>)
+            .map_err(|_| RepoError::CryptoError)?;
+
+        // if repo version == 1, otherwise re-use object decrypter
+        let bucket_decrypter = CryptoKey::new(&self.secret, "BucketPL".as_bytes())
+            .map(ObjectDecrypterV1::new)
+            .map(|d| Arc::new(d) as Arc<dyn ObjectDecrypter>)
+            .map_err(|_| RepoError::CryptoError)?;
+
+        Ok(Computer::new(
+            info,
+            &object_decrypter,
+            &bucket_decrypter,
+            &self.store,
+        ))
     }
 
-    pub async fn list_computers(&self) -> Result<Vec<Computer>, RepoError> {
+    // pub async fn get_computer(&self, id: &str) -> Result<Computer, RepoError> {
+    //     fetch_computer(self.store.as_ref(), id.to_owned()).await
+    // }
+
+    pub async fn list_computers(&self) -> Result<Vec<ComputerInfo>, RepoError> {
         let folders = self
             .store
             .list_contents("", Include::DIRS)
@@ -89,9 +93,9 @@ impl Repository {
 
                 // if it parses as a UUID, we want to return the key
                 // as a *string* - nobody upstream cares that its a UUID.
-                Uuid::parse_str(key).map(|_| key.to_owned()).ok()
+                Uuid::parse_str(key).map(|_| StorageKey::from(key)).ok()
             })
-            .map(|computer_key| fetch_computer(self.store.as_ref(), computer_key))
+            .map(|computer_key| fetch_computer_info(self.store.as_ref(), computer_key))
             .collect();
 
         // Run all the fetches in parallel and filter out all the items
@@ -101,41 +105,6 @@ impl Repository {
             .into_iter()
             .filter_map(|x| x.ok())
             .collect();
-        Ok(result)
-    }
-
-    pub async fn list_folders(
-        &self,
-        computer_id: &str,
-        decrypter: &dyn ObjectDecrypter,
-    ) -> Result<Vec<Folder>, RepoError> {
-        info!("Listing folders...");
-        let path = format!("{}/buckets/", computer_id);
-        let folder_buckets = self
-            .store
-            .list_contents(&path, Include::FILES)
-            .await
-            .map_err(RepoError::Storage)?;
-
-        info!("Building task list");
-        let tasks: Vec<_> = folder_buckets
-            .into_iter()
-            .map(|obj| fetch_folder(self.store.as_ref(), obj.key, decrypter))
-            .collect();
-
-        info!("Spawning {} subtasks", tasks.len());
-        let folders = future::join_all(tasks).await;
-
-        info!("Collating resuts");
-        let mut result = Vec::with_capacity(folders.len());
-        for maybe_folder in folders.into_iter() {
-            if let Err(e) = maybe_folder {
-                error!("Kaboom: {:?}", e);
-                return Err(RepoError::MalformedData);
-            }
-            result.push(maybe_folder.unwrap());
-        }
-
         Ok(result)
     }
 }
