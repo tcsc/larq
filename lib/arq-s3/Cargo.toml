@@ -10,6 +10,6 @@ edition = "2018"
 arq-storage = { path="../arq-storage" }
 futures = "0.3"
 log="0.4"
-rusoto_core="0.44"
-rusoto_s3="0.44"
+rusoto_core="0.46"
+rusoto_s3="0.46"
 trait-async = "0.1"

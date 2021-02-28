@@ -2,7 +2,7 @@ use crate::key::Key;
 use bitflags::bitflags;
 use trait_async::trait_async;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Error {
     NoSuchObject,
     AccessDenied,

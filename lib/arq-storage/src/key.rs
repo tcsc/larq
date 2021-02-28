@@ -13,6 +13,11 @@ impl Key {
     pub fn into_string(self) -> String {
         self.0
     }
+
+    pub fn ends_with(&self, suffix: &str) -> bool {
+        let &Key(ref s) = self;
+        s.ends_with(suffix)
+    }
 }
 
 impl ToString for Key {

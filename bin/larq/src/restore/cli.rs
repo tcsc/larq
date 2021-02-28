@@ -6,7 +6,7 @@ use uuid::Uuid;
 pub enum Command {
     ListComputers(ListComputerOpts),
     ListFolders(ListFolderOpts),
-    Restore(RestoreOpts),
+    ListFiles(ListFileOpts),
 }
 
 #[derive(Debug, Options)]
@@ -15,16 +15,20 @@ pub struct ListComputerOpts {}
 #[derive(Debug, Options)]
 #[options(required)]
 pub struct ListFolderOpts {
-    #[options(help = "The computer to operate on", meta = "UUID")]
+    #[options(help = "The computer to operate on", meta = "UUID", required)]
     pub computer: Uuid,
 }
 
 #[derive(Debug, Options)]
-pub struct RestoreOpts {
-    #[options(help = "The computer to operate on", meta = "UUID")]
+#[options()]
+pub struct ListFileOpts {
+    #[options(help = "The computer to operate on", meta = "UUID", required)]
     pub computer: Uuid,
 
-    #[options(help = "A regex describing the path of the file(s) to restore")]
+    #[options(help = "The folder to list", meta = "UUID", required)]
+    pub folder: Uuid,
+
+    #[options(help = "A regex describing the path of the file(s) to list")]
     pub path: String,
 }
 

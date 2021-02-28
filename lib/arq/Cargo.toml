@@ -9,7 +9,9 @@ arq-crypto = { path="../arq-crypto" }
 arq-storage = { path="../arq-storage" }
 arq-s3 = { path="../arq-s3" }
 futures = "0.3"
+hex = "0.4"
+nom = "6.1"
 log="0.4"
-plist="1.0"
+plist="1.1"
 serde = { version = "1.0", features = ["derive"] }
 uuid = { version = "0.8", features = ["serde"] }

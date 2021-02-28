@@ -8,10 +8,10 @@ edition = "2018"
 arq = { path = "../../lib/arq" }
 gumdrop = "0.8"
 log="0.4"
-rusoto_core = "0.44"
+rusoto_core = "0.46"
 serde = { version = "1.0", features = ["derive"] }
-simple_logger="1.6"
-tokio = "0.2"
+simple_logger="1.11"
+tokio = "1.2"
 toml = "0.5"
 uuid = "0.8"
 

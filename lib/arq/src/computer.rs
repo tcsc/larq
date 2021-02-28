@@ -5,7 +5,7 @@ use log::{debug, error, info};
 use serde::Deserialize;
 use std::{fmt, sync::Arc};
 
-use crate::{Folder, RepoError, StorageKey};
+use crate::{storage::Key as StorageKey, Folder, FolderInfo, RepoError};
 
 #[derive(Deserialize, Debug)]
 pub struct ComputerInfo {
@@ -49,7 +49,7 @@ impl Computer {
         }
     }
 
-    pub async fn list_folders(&self) -> Result<Vec<crate::Folder>, crate::RepoError> {
+    pub async fn list_folders(&self) -> Result<Vec<crate::FolderInfo>, crate::RepoError> {
         info!("Listing folders...");
         let path = format!("{}/buckets/", self.info.id);
         let folder_buckets = self
@@ -79,13 +79,29 @@ impl Computer {
 
         Ok(result)
     }
+
+    pub async fn get_folder(&self, folder_id: &str) -> Result<Folder, RepoError> {
+        let key = StorageKey::from(format!("{}/buckets/{}", self.info.id, folder_id));
+        let info = fetch_folder(
+            self.store.as_ref(),
+            key.clone(),
+            self.bucket_decrypter.as_ref(),
+        )
+        .await?;
+        Ok(Folder::new(
+            &self.info.id,
+            info,
+            &self.store,
+            &self.decrypter,
+        ))
+    }
 }
 
 async fn fetch_folder(
     store: &dyn Store,
     key: StorageKey,
     decrypter: &dyn ObjectDecrypter,
-) -> Result<Folder, RepoError> {
+) -> Result<FolderInfo, RepoError> {
     debug!("Fetching {:?}", key);
     // TODO - examine how to do a streaming decrypt, rather than a one-hit
     // buffered decrypt

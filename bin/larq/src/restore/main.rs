@@ -3,22 +3,23 @@ mod cmd;
 mod config;
 
 use gumdrop::Options;
-use log::{debug, error, info, Level};
+use log::{debug, error, info, LevelFilter};
 use std::{process::exit, sync::Arc};
 
 use arq::s3;
 use cli::{Args, Command};
 use config::Config;
+use simple_logger::SimpleLogger;
 
 fn main() {
     let args = Args::parse_args_default_or_exit();
 
     let log_level = if args.verbose {
-        Level::Trace
+        LevelFilter::Trace
     } else {
-        log::Level::Info
+        LevelFilter::Info
     };
-    simple_logger::init_with_level(log_level).unwrap();
+    SimpleLogger::new().with_level(log_level).init().unwrap();
 
     debug!("Loading config from {:?}...", args.config_file);
     let cfg = match config::load(&args.config_file) {
@@ -30,7 +31,7 @@ fn main() {
     };
 
     if let Some(cmd) = args.cmd {
-        let mut runtime = tokio::runtime::Runtime::new().unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
         let result = runtime.block_on(dispatch_cmd(&cfg, &args.password, cmd));
 
         drop(runtime);
@@ -51,8 +52,12 @@ async fn dispatch_cmd(cfg: &Config, secret: &str, cmd: Command) -> i32 {
     let result = match cmd {
         Command::ListComputers(_) => cmd::list_computers(&repo).await,
         Command::ListFolders(opts) => cmd::list_folders(&repo, opts).await,
-        Command::Restore(opts) => cmd::restore(&repo, opts).await,
+        Command::ListFiles(opts) => cmd::list_files(&repo, opts).await.map_err(|_| ()),
     };
+
+    if let &Err(ref e) = &result {
+        log::error!("Failed: {:?}", e);
+    }
 
     result.map(|_| 0).unwrap_or(1)
 }

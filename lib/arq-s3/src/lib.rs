@@ -1,5 +1,5 @@
 use arq_storage::{Error as StorageError, Include, Key, ObjectInfo, Result as StorageResult};
-use log::{debug, error};
+use log::{debug, error, info};
 
 use rusoto_core::{
     credential::StaticProvider,
@@ -86,6 +86,7 @@ impl arq_storage::Store for Store {
     // }
 
     async fn list_contents(&self, prefix: &str, flags: Include) -> StorageResult<Vec<ObjectInfo>> {
+        debug!("Fetching listing for {}", prefix);
         fn object_from_pfx(pfx: CommonPrefix) -> ObjectInfo {
             ObjectInfo {
                 key: Key::from(pfx.prefix.unwrap_or_default()),
@@ -137,14 +138,13 @@ impl arq_storage::Store for Store {
                 break;
             }
 
-            continuation_token = response.continuation_token;
+            continuation_token = response.next_continuation_token;
         }
 
         return Ok(result);
     }
 
     async fn get(&self, key: Key) -> StorageResult<Vec<u8>> {
-        debug!("Fetching object for key {:?}", key);
         let req = GetObjectRequest {
             bucket: self.bucket.clone(),
             key: key.to_string(),
@@ -163,7 +163,6 @@ impl arq_storage::Store for Store {
                 .await
                 .map_err(|_| StorageError::NetworkError)?,
         };
-
         Ok(content)
     }
 }

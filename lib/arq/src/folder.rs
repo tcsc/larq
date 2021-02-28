@@ -1,10 +1,18 @@
-use std::path::PathBuf;
+use std::{convert::TryInto, path::PathBuf, sync::Arc};
 
+use crate::{
+    crypto::ObjectDecrypter,
+    format_uuid,
+    packset::Packset,
+    storage::{self, Store},
+    RepoError, SHA1,
+};
+use log::info;
 use serde::Deserialize;
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug)]
-pub struct Folder {
+pub struct FolderInfo {
     #[serde(rename = "BucketUUID")]
     id: Uuid,
 
@@ -15,9 +23,81 @@ pub struct Folder {
     local_path: PathBuf,
 }
 
+pub struct Folder {
+    pub info: FolderInfo,
+    store: Arc<dyn Store>,
+    decrypter: Arc<dyn ObjectDecrypter>,
+    computer_id: String,
+}
+
+pub struct TreeIndex {
+    pack_set: Packset,
+}
+
+pub type CommitId = SHA1;
+
+impl Folder {
+    pub fn new(
+        computer_id: &str,
+        info: FolderInfo,
+        store: &Arc<dyn Store>,
+        decrypter: &Arc<dyn ObjectDecrypter>,
+    ) -> Folder {
+        Folder {
+            info,
+            store: store.clone(),
+            decrypter: decrypter.clone(),
+            computer_id: computer_id.to_owned(),
+        }
+    }
+
+    pub async fn get_latest_commit(&self) -> Result<CommitId, RepoError> {
+        let key = storage::Key::from(format!(
+            "{}/bucketdata/{}/refs/heads/master",
+            self.computer_id,
+            format_uuid(&self.info.id)
+        ));
+        let content = self.store.get(key).await.map_err(RepoError::Storage)?;
+
+        String::from_utf8(content)
+            .ok()
+            .and_then(|s| hex::decode(&s[..s.len() - 1]).ok())
+            .and_then(|v| v.try_into().ok())
+            .ok_or(RepoError::MalformedData)
+    }
+
+    //    pub async fn list_commits(&self) -> Result<CommitId, RepoError> {}
+
+    pub async fn load_tree_index(&mut self) -> Result<TreeIndex, RepoError> {
+        info!("Fetching tree pack index");
+        let key = storage::Key::from(format!(
+            "{}/packsets/{}-trees/",
+            self.computer_id,
+            format_uuid(&self.info.id)
+        ));
+
+        // load the commit packset (at least the index)
+        Packset::new(key, &self.store)
+            .await
+            .map(|ps| TreeIndex { pack_set: ps })
+    }
+}
+
+impl TreeIndex {
+    // pub async fn fetch_commit(&self, key: CommitId) -> Result<(), RepoError> {
+    //     // lookup tree in index
+    //     let loc = self.pack_set.get(key).ok_or(RepoError::MalformedData)?;
+
+    //     // fetch pack archive
+    //     // extract tree blob
+    //     // parse blob and return tree
+
+    // }
+}
+
 #[cfg(test)]
 mod test {
-    use super::Folder;
+    use super::FolderInfo;
 
     #[test]
     fn test_parse() {
@@ -57,7 +137,7 @@ mod test {
             </dict>
         </plist>"#;
 
-        let f: Folder = plist::from_bytes(text.as_bytes()).unwrap();
+        let f: FolderInfo = plist::from_bytes(text.as_bytes()).unwrap();
         let folder_id = Uuid::parse_str("408E376B-ECF7-4688-902A-1E7671BC5B9A").unwrap();
         assert_eq!(f.id, folder_id);
         assert_eq!(f.name, "company");

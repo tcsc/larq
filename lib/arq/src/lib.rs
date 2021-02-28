@@ -1,16 +1,19 @@
 mod computer;
 mod folder;
+mod packset;
 mod repository;
+
+pub mod storage {
+    pub use arq_storage::*;
+}
 
 pub mod s3 {
     pub use arq_s3::Store;
 }
 
 pub mod crypto {
-    pub use arq_crypto::{CryptoKey, ObjectDecrypterV1};
+    pub use arq_crypto::*;
 }
-
-pub use arq_storage::{Error as StorageError, Key as StorageKey};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RepoError {
@@ -19,9 +22,12 @@ pub enum RepoError {
     CryptoError, // probably bad key
 }
 
-pub use computer::Computer;
-pub use folder::Folder;
+pub use computer::{Computer, ComputerInfo};
+pub use folder::{Folder, FolderInfo};
+pub use packset::Packset;
 pub use repository::Repository;
+
+pub type SHA1 = [u8; 20];
 
 pub fn format_uuid(id: &uuid::Uuid) -> String {
     let mut buf = uuid::Uuid::encode_buffer();
