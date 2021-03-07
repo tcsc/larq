@@ -1,7 +1,12 @@
+mod commit;
+mod compression;
 mod computer;
+mod constructs;
 mod folder;
 mod packset;
 mod repository;
+mod sha;
+mod tree;
 
 pub mod storage {
     pub use arq_storage::*;
@@ -26,8 +31,7 @@ pub use computer::{Computer, ComputerInfo};
 pub use folder::{Folder, FolderInfo};
 pub use packset::Packset;
 pub use repository::Repository;
-
-pub type SHA1 = [u8; 20];
+pub use sha::SHA1;
 
 pub fn format_uuid(id: &uuid::Uuid) -> String {
     let mut buf = uuid::Uuid::encode_buffer();

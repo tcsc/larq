@@ -52,12 +52,11 @@ async fn dispatch_cmd(cfg: &Config, secret: &str, cmd: Command) -> i32 {
     let result = match cmd {
         Command::ListComputers(_) => cmd::list_computers(&repo).await,
         Command::ListFolders(opts) => cmd::list_folders(&repo, opts).await,
-        Command::ListFiles(opts) => cmd::list_files(&repo, opts).await.map_err(|_| ()),
+        Command::ListFiles(opts) => cmd::list_files(&repo, opts).await.map_err(|e| {
+            log::error!("Failed: {:?}", e);
+            ()
+        }),
     };
-
-    if let &Err(ref e) = &result {
-        log::error!("Failed: {:?}", e);
-    }
 
     result.map(|_| 0).unwrap_or(1)
 }

@@ -13,7 +13,8 @@ pub async fn list_files(repo: &Repository, args: ListFileOpts) -> Result<(), Rep
 
     let tree_index = folder.load_tree_index().await?;
 
-    info!("Loaded packset!");
+    info!("Loaded tree index!");
+    tree_index.load(&latest_commit).await?;
 
     // let tree = tree_index.load(latest_commit)?;
     unimplemented!()

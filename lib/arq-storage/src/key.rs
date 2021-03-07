@@ -54,7 +54,11 @@ impl<'a> Div<&'a str> for Key {
     fn div(self, rhs: &'a str) -> Key {
         let Key(mut s) = self;
         s.reserve(rhs.len() + 1);
-        s.push('/');
+        if let Some(c) = s.chars().last() {
+            if c != '/' {
+                s.push('/');
+            }
+        }
         s += rhs;
         Key(s)
     }
@@ -66,7 +70,11 @@ impl<'a> Div<&'a str> for &Key {
     fn div(self, rhs: &'a str) -> Key {
         let mut s = self.0.to_owned();
         s.reserve(rhs.len() + 1);
-        s.push('/');
+        if let Some(c) = s.chars().last() {
+            if c != '/' {
+                s.push('/');
+            }
+        }
         s += rhs;
         Key(s)
     }

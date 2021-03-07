@@ -5,6 +5,7 @@ use crate::{
     format_uuid,
     packset::Packset,
     storage::{self, Store},
+    tree::TreeIndex,
     RepoError, SHA1,
 };
 use log::info;
@@ -28,10 +29,6 @@ pub struct Folder {
     store: Arc<dyn Store>,
     decrypter: Arc<dyn ObjectDecrypter>,
     computer_id: String,
-}
-
-pub struct TreeIndex {
-    pack_set: Packset,
 }
 
 pub type CommitId = SHA1;
@@ -79,20 +76,8 @@ impl Folder {
         // load the commit packset (at least the index)
         Packset::new(key, &self.store)
             .await
-            .map(|ps| TreeIndex { pack_set: ps })
+            .map(|ps| TreeIndex::new(ps, &self.decrypter))
     }
-}
-
-impl TreeIndex {
-    // pub async fn fetch_commit(&self, key: CommitId) -> Result<(), RepoError> {
-    //     // lookup tree in index
-    //     let loc = self.pack_set.get(key).ok_or(RepoError::MalformedData)?;
-
-    //     // fetch pack archive
-    //     // extract tree blob
-    //     // parse blob and return tree
-
-    // }
 }
 
 #[cfg(test)]

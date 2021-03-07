@@ -97,6 +97,8 @@ impl Computer {
     }
 }
 
+const V1_HEADER: &'static [u8] = "encrypted".as_bytes();
+
 async fn fetch_folder(
     store: &dyn Store,
     key: StorageKey,
@@ -107,9 +109,13 @@ async fn fetch_folder(
     // buffered decrypt
     let encrypted_object = store.get(key).await.map_err(RepoError::Storage)?;
 
+    if encrypted_object.len() < V1_HEADER.len() || &encrypted_object[..9] != V1_HEADER {
+        return Err(RepoError::MalformedData);
+    }
+
     debug!("decrypting {}-byte object", encrypted_object.len());
     let obj = decrypter
-        .decrypt_object(&encrypted_object[..])
+        .decrypt_object(&encrypted_object[V1_HEADER.len()..])
         .map_err(|_| RepoError::CryptoError)?;
 
     drop(encrypted_object);

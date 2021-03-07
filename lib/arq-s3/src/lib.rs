@@ -1,5 +1,5 @@
 use arq_storage::{Error as StorageError, Include, Key, ObjectInfo, Result as StorageResult};
-use log::{debug, error, info};
+use log::{debug, error};
 
 use rusoto_core::{
     credential::StaticProvider,

@@ -5,14 +5,13 @@ use futures::future::{self, TryFutureExt};
 use log::info;
 
 use nom::{
-    do_parse, many_m_n, named,
-    number::streaming::{be_u32, be_u64, be_u8},
+    do_parse, many_m_n, map_res, named,
+    number::streaming::{be_u32, be_u64},
     tag, take,
 };
 
-use uuid::Uuid;
-
 use crate::{
+    constructs::sha1,
     storage::{Include, Key, Store},
     RepoError, SHA1,
 };
@@ -44,10 +43,10 @@ named!(
     do_parse!(
         offset: be_u64
             >> length: be_u64
-            >> sha: many_m_n!(20, 20, be_u8)
+            >> sha: sha1
             >> take!(4)
             >> (PackedIndexItem {
-                sha: sha.try_into().unwrap(),
+                sha: sha,
                 offset: offset,
                 length: length,
             })
@@ -59,7 +58,7 @@ named!(
     do_parse!(
         tag!(&[0xff, 0x74, 0x4f, 0x63])
             >> version: be_u32
-            >> counts: many_m_n!(256, 256, be_u32)
+            >> counts: map_res!(many_m_n!(256, 256, be_u32), TryInto::<[u32; 256]>::try_into)
             >> entries:
                 many_m_n!(
                     counts[0xFF] as usize,
@@ -68,7 +67,7 @@ named!(
                 )
             >> (PackedIndex {
                 version: version,
-                counts: counts.try_into().unwrap(),
+                counts: counts,
                 entries: entries,
             })
     )
@@ -103,7 +102,7 @@ pub async fn load(key: &Key, store: &dyn Store) -> Result<PackIndex, RepoError> 
         let (pack_id, index_data) = parse(&object_key, blob)?;
         for e in index_data.entries {
             let loc = PackedItem {
-                pack_id,
+                pack_id: pack_id.clone(),
                 offset: e.offset,
                 length: e.length,
             };
@@ -128,7 +127,8 @@ fn extract_pack_id(key: &Key) -> Option<SHA1> {
     let end = s.rfind('.')?;
     let substr = &s[start + 1..end];
     hex::decode(substr)
-        .map(|v| v.try_into().expect("pack ID should be a SHA1")).ok()
+        .map(|v| v.try_into().expect("pack ID should be a SHA1"))
+        .ok()
 }
 
 #[cfg(test)]
