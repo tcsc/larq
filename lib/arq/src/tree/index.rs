@@ -3,7 +3,7 @@
 // use crate::{
 //     commit::{self, Commit, CompressionType},
 //     compression::decompress,
-//     crypto::ObjectDecrypter, 
+//     crypto::ObjectDecrypter,
 //     packset::Packset,
 //     tree::{self, Tree},
 //     RepoError,
@@ -25,21 +25,21 @@
 
 //     pub async fn load(&self, commit_id: &SHA1) -> Result<Commit, RepoError> {
 //         log::info!("Loading commit {}", commit_id);
-//         let commit = 
+//         let commit =
 //             self.packset.load(&commit_id)
 //                 .await
 //                 .and_then(|blob| {
 //                     self.decrypter
 //                         .decrypt_object(&blob.content)
 //                         .map_err(|e| RepoError::CryptoError)
-//                         .and_then(|d| Commit::parse(&d, &self))  
+//                         .and_then(|d| Commit::parse(&d, &self))
 //                 })?;
- 
-//         log::info!("Loading tree from {} (expand key: {}, compression: {:?})", 
-//             commit.tree_sha, 
+
+//         log::info!("Loading tree from {} (expand key: {}, compression: {:?})",
+//             commit.tree_sha,
 //             commit.expand_key,
 //             commit.compression_type);
-//         let _tree = 
+//         let _tree =
 //             self.packset.load(&commit.tree_sha)
 //                 .await
 //                 .and_then(|blob| {
@@ -59,14 +59,14 @@
 
 //         unimplemented!()
 
-//     //     let tree =  
+//     //     let tree =
 //     //         self.packset.load(commit.tree_sha)
 //     //             .await
 //     //             .and_then(|blob| {
 //     //                 self.decrypter
 //     //                     .decrypt_object(&encrypted_blob.content)
 //     //                     .map_err(|e| RepoError::CryptoError)
-//     //                     .and_then(|d| commit::parse(&d[..]))?;    
+//     //                     .and_then(|d| commit::parse(&d[..]))?;
 //     //             })
 //     }
 // }

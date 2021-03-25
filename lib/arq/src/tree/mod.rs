@@ -5,10 +5,7 @@ use std::convert::TryFrom;
 
 use chrono::{DateTime, Utc};
 
-use crate::{
-    CompressionType,
-    SHA1
-};
+use crate::{CompressionType, SHA1};
 
 pub use index::*;
 pub use parser::parse;

@@ -11,9 +11,7 @@ use nom::{
     number::streaming::{be_u32, be_u64, be_u8},
 };
 
-use crate::{
-    CompressionType, SHA1
-};
+use crate::{CompressionType, SHA1};
 
 named!(
     pub boolean<bool>,
@@ -90,8 +88,8 @@ pub fn version_header<'a>(input: &'a [u8], prefix: &'static [u8]) -> nom::IResul
 named!(
     pub compression_type<CompressionType>,
     map_res!(
-        be_u32, 
-        |x| { 
+        be_u32,
+        |x| {
             CompressionType::try_from(x).
                 map_err(|e| format!("Invalid compression type: {}", e))
         }

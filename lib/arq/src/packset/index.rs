@@ -45,7 +45,11 @@ named!(
             >> length: be_u64
             >> sha: sha1
             >> take!(4)
-            >> (PackedIndexItem { sha, offset, length })
+            >> (PackedIndexItem {
+                sha,
+                offset,
+                length
+            })
     )
 );
 
@@ -61,7 +65,11 @@ named!(
                     counts[0xFF] as usize,
                     packed_index_item
                 )
-            >> (PackedIndex { version, counts,  entries, })
+            >> (PackedIndex {
+                version,
+                counts,
+                entries,
+            })
     )
 );
 

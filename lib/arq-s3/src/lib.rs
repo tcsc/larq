@@ -1,8 +1,8 @@
 mod cache;
 
-use std::path::PathBuf;
 use arq_storage::{Error as StorageError, Include, Key, ObjectInfo, Result as StorageResult};
 use log::{debug, error};
+use std::path::PathBuf;
 
 use rusoto_core::{
     credential::StaticProvider,
@@ -30,7 +30,7 @@ impl Store {
         key_id: &str,
         secret: &str,
         region: Region,
-        cache_dir: Option<std::path::PathBuf>
+        cache_dir: Option<std::path::PathBuf>,
     ) -> Result<Store, TlsError> {
         let creds = StaticProvider::new(key_id.to_string(), secret.to_string(), None, None);
         let dispatcher = HttpClient::new()?;
@@ -154,7 +154,7 @@ impl arq_storage::Store for Store {
 
     async fn get(&self, key: Key) -> StorageResult<Vec<u8>> {
         if let Some(buf) = self.cache.read(&key) {
-            return Ok(buf)
+            return Ok(buf);
         }
 
         let req = GetObjectRequest {

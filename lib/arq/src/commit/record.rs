@@ -7,12 +7,7 @@ use nom::{
     number::streaming::{be_u64, be_u8},
 };
 
-use crate::{
-    constructs::*,
-    CompressionType, 
-    RepoError,
-    SHA1
-};
+use crate::{constructs::*, CompressionType, RepoError, SHA1};
 
 #[derive(Debug)]
 struct FileError {
@@ -136,8 +131,7 @@ mod test {
 
     #[test]
     fn test_parse_v9() {
-        let (_, c) = super::commit_record(COMMIT_V9)
-            .expect("Parsing commit should succeed");
+        let (_, c) = super::commit_record(COMMIT_V9).expect("Parsing commit should succeed");
         assert_eq!(c.version, 9);
     }
 }

@@ -19,7 +19,11 @@ named!(
             >> name: maybe_string
             >> len: be_u64
             >> content: many_m_n!(len as usize, len as usize, be_u8)
-            >> (PackedObject { mime_type, name, content })
+            >> (PackedObject {
+                mime_type,
+                name,
+                content
+            })
     )
 );
 

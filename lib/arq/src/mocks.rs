@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 
 use crate::{
-    storage::{self, Key, Store, Include, ObjectInfo},
-    crypto::{ObjectDecrypter, CryptoError}
+    crypto::{CryptoError, ObjectDecrypter},
+    storage::{self, Include, Key, ObjectInfo, Store},
 };
 
 struct NullStore {}
@@ -17,7 +17,6 @@ impl Store for NullStore {
         Ok(Vec::new())
     }
 }
-
 
 struct NullDecrypter {}
 

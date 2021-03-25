@@ -1,17 +1,16 @@
 use std::{
-    cmp::{Ordering, Eq, Ord, PartialEq, PartialOrd},
-    collections::BinaryHeap
+    cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
+    collections::BinaryHeap,
 };
 
 use futures::{
     stream::{FuturesUnordered, StreamExt},
-    Future,
-    TryFuture,
+    Future, TryFuture,
 };
 
-struct TaggedResult<T>{
+struct TaggedResult<T> {
     tag: usize,
-    result: T
+    result: T,
 }
 
 impl<T> PartialEq for TaggedResult<T> {
@@ -35,32 +34,38 @@ impl<T> Ord for TaggedResult<T> {
     }
 }
 
-async fn tag_task<F>(tag: usize, task: F) -> Result<TaggedResult<<F as TryFuture>::Ok>, <F as TryFuture>::Error> 
+async fn tag_task<F>(
+    tag: usize,
+    task: F,
+) -> Result<TaggedResult<<F as TryFuture>::Ok>, <F as TryFuture>::Error>
 where
-    F: TryFuture + Future<Output=Result<<F as TryFuture>::Ok, <F as TryFuture>::Error>>
+    F: TryFuture + Future<Output = Result<<F as TryFuture>::Ok, <F as TryFuture>::Error>>,
 {
     match task.await {
-        Ok(x) => Ok(TaggedResult{tag, result: x}),
-        Err(e) => Err(e)
+        Ok(x) => Ok(TaggedResult { tag, result: x }),
+        Err(e) => Err(e),
     }
 }
 
-pub async fn try_join_all<I>(n: usize, i: I) -> 
-    Result<
-        Vec<<<I as IntoIterator>::Item as TryFuture>::Ok>, 
-        <<I as IntoIterator>::Item as TryFuture>::Error
-    >
+pub async fn try_join_all<I>(
+    n: usize,
+    i: I,
+) -> Result<
+    Vec<<<I as IntoIterator>::Item as TryFuture>::Ok>,
+    <<I as IntoIterator>::Item as TryFuture>::Error,
+>
 where
     I: IntoIterator,
-    I::Item: TryFuture + Future<
-        Output=Result<
-            <<I as IntoIterator>::Item as TryFuture>::Ok, 
-            <<I as IntoIterator>::Item as TryFuture>::Error
-        >
-    >
+    I::Item: TryFuture
+        + Future<
+            Output = Result<
+                <<I as IntoIterator>::Item as TryFuture>::Ok,
+                <<I as IntoIterator>::Item as TryFuture>::Error,
+            >,
+        >,
 {
-    // Wrap the supplied task iterator so that it produces tasks tagged 
-    // with the original task index. This allows us to re-order the 
+    // Wrap the supplied task iterator so that it produces tasks tagged
+    // with the original task index. This allows us to re-order the
     // un-ordered task results as they come in so we can preserve the
     // input ordering in the output buffer.
     let mut tasks = i.into_iter().enumerate().map(|(i, t)| tag_task(i, t));
@@ -74,14 +79,14 @@ where
         workers.push(t);
         if workers.len() == n {
             break;
-        } 
+        }
     }
 
     loop {
         match workers.next().await {
             Some(Ok(r)) => {
                 // We want to force the ordering of the results to match the
-                // ordering of the input jobs, so we buffer the un-ordered 
+                // ordering of the input jobs, so we buffer the un-ordered
                 // results that come out of the worker stream in a heap until
                 // we know we can emit them in sequence.
                 ordered_results.push(r);
@@ -96,29 +101,24 @@ where
                     next_output += 1;
                 }
 
-                // Replace the finished task with the next ofn off the queue 
+                // Replace the finished task with the next ofn off the queue
                 if let Some(t) = tasks.next() {
                     workers.push(t);
-                } 
-            }, 
-            Some(Err(e)) => {
-                return Err(e)
-            },
-            None => {
-                break
+                }
             }
+            Some(Err(e)) => return Err(e),
+            None => break,
         }
     }
 
     Ok(results)
 }
 
-
 #[cfg(test)]
 mod test {
+    use super::*;
     use std::sync::{Arc, Mutex};
     use tokio::time::{sleep, Duration};
-    use super::*;
 
     #[derive(Debug)]
     struct StateData {
@@ -134,7 +134,7 @@ mod test {
         s.max = std::cmp::max(s.current, s.max);
         drop(s);
 
-        // delay 
+        // delay
         let v = rand::random::<f64>();
         sleep(Duration::from_millis((100.0 * v) as u64)).await;
 
@@ -144,7 +144,7 @@ mod test {
 
         if n < 0 {
             Err(-1)
-        } else { 
+        } else {
             Ok(n)
         }
     }
@@ -152,7 +152,11 @@ mod test {
     #[tokio::test]
     async fn success() {
         let mut tasks = Vec::with_capacity(100);
-        let state = Arc::new(Mutex::new(StateData{current: 0, count: 0, max: 0}));
+        let state = Arc::new(Mutex::new(StateData {
+            current: 0,
+            count: 0,
+            max: 0,
+        }));
         for x in 0..100 {
             tasks.push(random_wait(x, state.clone()));
         }
@@ -165,7 +169,7 @@ mod test {
                 let s = state.lock().unwrap();
                 assert_eq!(s.current, 0);
                 assert!(s.max <= 5, "Max concurrent should be <= 5: {:?}", s);
-            },
+            }
             Err(e) => {
                 assert!(false, "Expected try_join_all to succeed: {}", e);
             }
@@ -175,7 +179,11 @@ mod test {
     #[tokio::test]
     async fn fewer_jobs_than_throttle() {
         let mut tasks = Vec::with_capacity(5);
-        let state = Arc::new(Mutex::new(StateData{current: 0, count: 0, max: 0}));
+        let state = Arc::new(Mutex::new(StateData {
+            current: 0,
+            count: 0,
+            max: 0,
+        }));
         for x in 0..tasks.capacity() {
             tasks.push(random_wait(x as isize, state.clone()));
         }
@@ -184,7 +192,7 @@ mod test {
             Ok(v) => {
                 assert_eq!(v.len(), 5);
                 assert_eq!(v, (0..5).collect::<Vec<isize>>());
-            },
+            }
             Err(e) => {
                 assert!(false, "Expected try_join_all to succeed: {}", e);
             }
@@ -194,7 +202,11 @@ mod test {
     #[tokio::test]
     async fn failure() {
         let mut tasks = Vec::with_capacity(100);
-        let state = Arc::new(Mutex::new(StateData{current: 0, count: 0, max: 0}));
+        let state = Arc::new(Mutex::new(StateData {
+            current: 0,
+            count: 0,
+            max: 0,
+        }));
         for x in 0..100 {
             let y = if x == 10 { -100 } else { x };
             tasks.push(random_wait(y, state.clone()));

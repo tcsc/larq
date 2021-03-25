@@ -12,6 +12,6 @@ pub async fn list_files(repo: &Repository, args: ListFileOpts) -> Result<(), Rep
     let latest_commit = folder.get_latest_commit().await?;
 
     info!("Committed at: {:?}", latest_commit.timestamp());
-    
+
     latest_commit.list_files("**/*").await
 }

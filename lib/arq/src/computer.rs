@@ -1,6 +1,6 @@
 use arq_crypto::ObjectDecrypter;
 use arq_storage::{Include, Store};
-use futures::{TryFutureExt, future};
+use futures::{future, TryFutureExt};
 use log::{debug, error, info};
 use serde::Deserialize;
 use std::{fmt, sync::Arc};
@@ -87,12 +87,7 @@ impl Computer {
             key.clone(),
             self.bucket_decrypter.as_ref(),
         )
-        .and_then(|info| {Folder::new(
-            &self.info.id,
-            info,
-            &self.store,
-            &self.decrypter
-        )})
+        .and_then(|info| Folder::new(&self.info.id, info, &self.store, &self.decrypter))
         .await
     }
 }

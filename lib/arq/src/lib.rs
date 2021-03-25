@@ -57,7 +57,7 @@ impl std::convert::TryFrom<u32> for CompressionType {
             0 => Ok(CompressionType::None),
             1 => Ok(CompressionType::GZip),
             2 => Ok(CompressionType::LZ4),
-            _ => Err(x)
+            _ => Err(x),
         }
     }
 }

@@ -7,7 +7,14 @@ use crate::{
 };
 
 use nom::{
-    call, cond, do_parse, many_m_n, map, map_res, named, named_args,
+    call,
+    cond,
+    do_parse,
+    many_m_n,
+    map,
+    map_res,
+    named,
+    named_args,
     // dbg_dmp,
     number::streaming::{be_i32, be_i64, be_u32, be_u64},
 };
@@ -262,7 +269,7 @@ mod test {
                 println!("Tree: {:?}", t)
             }
             Err(e) => {
-                assert!(false, "Parse failed");// with {:?}", e);
+                assert!(false, "Parse failed with {:?}", e);
             }
         }
     }

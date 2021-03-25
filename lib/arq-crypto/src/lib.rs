@@ -8,10 +8,9 @@ pub enum CryptoError {
     BadKey,
     MalformedData,
     Unexpected,
-    LibraryError (openssl::error::ErrorStack)
+    LibraryError(openssl::error::ErrorStack),
 }
 
 pub trait ObjectDecrypter {
     fn decrypt_object(&self, object_bytes: &[u8]) -> Result<Vec<u8>, CryptoError>;
 }
-

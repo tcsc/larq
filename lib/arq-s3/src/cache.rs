@@ -1,16 +1,14 @@
-use std::{
-    path::PathBuf
-};
+use std::path::PathBuf;
 
 use arq_storage::Key;
 
 pub struct Cache {
-    root: Option<PathBuf>
+    root: Option<PathBuf>,
 }
 
 impl Cache {
     pub fn new(path: Option<PathBuf>) -> Cache {
-        Cache { root: path } 
+        Cache { root: path }
     }
 
     pub fn read(&self, key: &Key) -> Option<Vec<u8>> {
@@ -45,8 +43,8 @@ impl Cache {
             if let Ok(mut f) = std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
-                .open(&tmp) {
-                
+                .open(&tmp)
+            {
                 f.write_all(data);
                 drop(f);
 

@@ -2,21 +2,19 @@ mod record;
 
 use std::{
     path::{self, PathBuf},
-    sync::Arc
+    sync::Arc,
 };
 
 use chrono::prelude::*;
 use glob::Pattern;
-use log::{info, error};
+use log::{error, info};
 
 use crate::{
-    storage::Store,
     compression::decompress,
     crypto::ObjectDecrypter,
-    tree::{self, StorageType, BlobKey},
-    CompressionType,
-    Packset,
-    RepoError,
+    storage::Store,
+    tree::{self, BlobKey, StorageType},
+    CompressionType, Packset, RepoError,
 };
 
 use record::CommitRecord;
@@ -29,13 +27,17 @@ pub struct Commit<'a> {
 }
 
 impl<'a> Commit<'a> {
-    pub fn parse(blob: &[u8], packset: &'a Packset, decrypter: &Arc<dyn ObjectDecrypter>) -> Result<Self, RepoError> {
+    pub fn parse(
+        blob: &[u8],
+        packset: &'a Packset,
+        decrypter: &Arc<dyn ObjectDecrypter>,
+    ) -> Result<Self, RepoError> {
         let record = record::parse(blob)?;
-        Ok( Commit{
-            record, 
+        Ok(Commit {
+            record,
             packset,
-            store: packset.store().clone(), 
-            decrypter: decrypter.clone()
+            store: packset.store().clone(),
+            decrypter: decrypter.clone(),
         })
     }
 
@@ -46,42 +48,47 @@ impl<'a> Commit<'a> {
         struct Child {
             pattern_index: isize,
             keys: Vec<BlobKey>,
-            path: PathBuf, 
+            path: PathBuf,
             compression_type: CompressionType,
         };
 
         let root = Child {
             pattern_index: -1,
             path: PathBuf::new(),
-            keys: vec!(BlobKey{
+            keys: vec![BlobKey {
                 sha: commit.tree_sha.clone(),
                 stretch_key: commit.expand_key,
                 storage_type: StorageType::S3,
                 size: None,
-                upload_date: None
-            }),
-            compression_type: commit.compression_type
+                upload_date: None,
+            }],
+            compression_type: commit.compression_type,
         };
 
-        let mut pending_children = vec!(root);
+        let mut pending_children = vec![root];
 
-        while let Some(j) = pending_children.pop() { 
-            info!("Loading child {:?}", j.keys); 
-            let t = load_blob(&self.packset, &j.keys, self.decrypter.as_ref(), j.compression_type)
-                .await
-                .and_then(|d| {
-                    use std::io::Write;
-                    let mut f = std::fs::File::create("child.blob").expect("file");
-                    f.write_all(&d);
-                    drop(f);
-                    
-                    tree::parse(&d)
-                })
-                .map_err(|e| {
-                    error!("Parsing tree failed: {:?}", e);
-                    e
-                })?;
-            
+        while let Some(j) = pending_children.pop() {
+            info!("Loading child {:?}", j.keys);
+            let t = load_blob(
+                &self.packset,
+                &j.keys,
+                self.decrypter.as_ref(),
+                j.compression_type,
+            )
+            .await
+            .and_then(|d| {
+                use std::io::Write;
+                let mut f = std::fs::File::create("child.blob").expect("file");
+                f.write_all(&d);
+                drop(f);
+
+                tree::parse(&d)
+            })
+            .map_err(|e| {
+                error!("Parsing tree failed: {:?}", e);
+                e
+            })?;
+
             for n in t.nodes {
                 if n.is_tree {
                     let child = Child {
@@ -91,13 +98,13 @@ impl<'a> Commit<'a> {
                         compression_type: n.data_compression_type,
                     };
                     pending_children.push(child);
-                    continue
+                    continue;
                 }
 
                 println!("{:?}: {} bytes", j.path.join(n.name), n.data_size);
-            }        
-        }        
-        
+            }
+        }
+
         Ok(())
     }
 
@@ -106,8 +113,15 @@ impl<'a> Commit<'a> {
     }
 }
 
-async fn load_blob(packset: &Packset, keys: &[BlobKey], decrypter: &dyn ObjectDecrypter, compression_type: CompressionType) -> Result<Vec<u8>, RepoError> {
-    let fetch_tasks = keys.iter().map(|k| load_blob_fragment(packset, k, decrypter, compression_type));
+async fn load_blob(
+    packset: &Packset,
+    keys: &[BlobKey],
+    decrypter: &dyn ObjectDecrypter,
+    compression_type: CompressionType,
+) -> Result<Vec<u8>, RepoError> {
+    let fetch_tasks = keys
+        .iter()
+        .map(|k| load_blob_fragment(packset, k, decrypter, compression_type));
     let blobs = futures::future::try_join_all(fetch_tasks).await?;
     let overall_len = blobs.iter().fold(0, |acc, x| acc + x.len());
     let mut result = Vec::with_capacity(overall_len);
@@ -118,13 +132,17 @@ async fn load_blob(packset: &Packset, keys: &[BlobKey], decrypter: &dyn ObjectDe
     Ok(result)
 }
 
-async fn load_blob_fragment(packset: &Packset, key: &BlobKey, decrypter: &dyn ObjectDecrypter, compression_type: CompressionType) -> Result<Vec<u8>, RepoError> {
+async fn load_blob_fragment(
+    packset: &Packset,
+    key: &BlobKey,
+    decrypter: &dyn ObjectDecrypter,
+    compression_type: CompressionType,
+) -> Result<Vec<u8>, RepoError> {
     let encrypted_object = packset.load(&key.sha).await?;
-        
-    let decrypted_object =
-        decrypter
-            .decrypt_object(&encrypted_object.content)
-            .map_err(|_| RepoError::CryptoError)?;
+
+    let decrypted_object = decrypter
+        .decrypt_object(&encrypted_object.content)
+        .map_err(|_| RepoError::CryptoError)?;
     drop(encrypted_object);
 
     if compression_type == CompressionType::None {

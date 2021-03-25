@@ -1,4 +1,8 @@
-use std::{convert::TryInto, path::{Path, PathBuf}, sync::Arc};
+use std::{
+    convert::TryInto,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use crate::{
     commit::Commit,
@@ -55,7 +59,12 @@ impl Folder {
             self.computer_id,
             format_uuid(&self.info.id)
         ));
-        let content = self.packset.store().get(key).await.map_err(RepoError::Storage)?;
+        let content = self
+            .packset
+            .store()
+            .get(key)
+            .await
+            .map_err(RepoError::Storage)?;
 
         let commit_sha = String::from_utf8(content)
             .ok()
@@ -81,7 +90,11 @@ impl Folder {
     }
 }
 
-async fn load_packset(computer_id: &str, info: &FolderInfo, store: &Arc<dyn Store>) -> Result<Packset, RepoError> {
+async fn load_packset(
+    computer_id: &str,
+    info: &FolderInfo,
+    store: &Arc<dyn Store>,
+) -> Result<Packset, RepoError> {
     info!("Fetching tree pack index");
     let key = storage::Key::from(format!(
         "{}/packsets/{}-trees/",

@@ -14,13 +14,12 @@ use simple_logger::SimpleLogger;
 fn main() {
     let args = Args::parse_args_default_or_exit();
 
-
     let log_level = match args.verbose {
-                        0 => LevelFilter::Warn,
-                        1 => LevelFilter::Info,
-                        2 => LevelFilter::Debug,
-                        _ => LevelFilter::Trace,
-                    };
+        0 => LevelFilter::Warn,
+        1 => LevelFilter::Info,
+        2 => LevelFilter::Debug,
+        _ => LevelFilter::Trace,
+    };
     SimpleLogger::new().with_level(log_level).init().unwrap();
 
     debug!("Loading config from {:?}...", args.config_file);
@@ -47,7 +46,7 @@ async fn dispatch_cmd(cfg: &Config, secret: &str, cmd: Command) -> i32 {
         &cfg.access_key_id,
         &cfg.secret_key,
         rusoto_core::Region::ApSoutheast2,
-        Some(std::path::PathBuf::from("./cache"))
+        Some(std::path::PathBuf::from("./cache")),
     )
     .expect("Transport construction");
     let repo = arq::Repository::new(secret, Arc::new(transport));
