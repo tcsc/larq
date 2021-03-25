@@ -7,7 +7,7 @@ pub struct ObjectDecrypterV1 {
 
 impl ObjectDecrypterV1 {
     pub fn new(key: CryptoKey) -> Self {
-        ObjectDecrypterV1 { key: key }
+        ObjectDecrypterV1 { key }
     }
 }
 

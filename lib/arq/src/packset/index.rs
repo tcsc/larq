@@ -45,11 +45,7 @@ named!(
             >> length: be_u64
             >> sha: sha1
             >> take!(4)
-            >> (PackedIndexItem {
-                sha: sha,
-                offset: offset,
-                length: length,
-            })
+            >> (PackedIndexItem { sha, offset, length })
     )
 );
 
@@ -65,11 +61,7 @@ named!(
                     counts[0xFF] as usize,
                     packed_index_item
                 )
-            >> (PackedIndex {
-                version: version,
-                counts: counts,
-                entries: entries,
-            })
+            >> (PackedIndex { version, counts,  entries, })
     )
 );
 
@@ -90,7 +82,7 @@ pub async fn load(key: &Key, store: &dyn Store) -> Result<PackIndex, RepoError> 
         .map(|o| store.get(o.key.clone()).map_ok(|data| (o.key, data)));
 
     // check if any of the index fetches failed
-    let index_data = future::try_join_all(fetch_tasks)
+    let index_data = throttled::try_join_all(5, fetch_tasks)
         .await
         .map_err(RepoError::Storage)?;
 

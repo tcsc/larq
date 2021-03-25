@@ -8,6 +8,7 @@ use crate::{
 
 use nom::{
     call, cond, do_parse, many_m_n, map, map_res, named, named_args,
+    // dbg_dmp,
     number::streaming::{be_i32, be_i64, be_u32, be_u64},
 };
 
@@ -32,10 +33,10 @@ named_args!(
         >> date: cond!(tree_version >= 17, maybe_date_time)
         >> ( maybe_sha.map(|sha| {
                 BlobKey {
-                    sha: sha,
+                    sha,
                     stretch_key: expand.unwrap_or(false),
                     storage_type: storage_type.unwrap_or(StorageType::S3),
-                    size: size,
+                    size,
                     upload_date: date.unwrap_or(None),
                 }
             })
@@ -73,20 +74,20 @@ named_args!(
         name: non_null_string
         >> is_tree: boolean
         >> has_missing_items: cond!(version >= 18, boolean)
-        >> data_is_compressed: cond!(version >= 12 && version <= 18, boolean)
+        >> data_is_compressed: cond!((12..=18).contains(&version), boolean)
         >> data_compression_type: cond!(version >= 19, compression_type)
-        >> xattrs_are_compressed: cond!(version >= 12 && version <= 18, boolean)
+        >> xattrs_are_compressed: cond!((12..=18).contains(&version), boolean)
         >> xattrs_compression_type: cond!(version >= 19, compression_type)
-        >> acl_is_compressed: cond!(version >= 12 && version <= 18, boolean)
+        >> acl_is_compressed: cond!((12..=18).contains(&version), boolean)
         >> acl_compression_type: cond!(version >= 19, compression_type)
         >> blob_keys: call!(blob_keys, version)
         >> data_size: be_u64
         // NB: The docs say <= v18, but the arq restore implemetation says a strictly
         // less than, and the actual v18 blobs agree
         >> thumbnail_sha: cond!(version < 18, maybe_sha_string)
-        >> stretch_thumbnail_key: cond!(version >= 14 && version < 18, boolean)
+        >> stretch_thumbnail_key: cond!((14..=17).contains(&version), boolean)
         >> preview_sha: cond!(version < 18, maybe_sha_string)
-        >> stretch_preview_key: cond!(version < 18, boolean)
+        >> stretch_preview_key: cond!((14..=17).contains(&version), boolean)
 
         >> xattrs_blob_key: call!(maybe_blob_key, version)
         >> xattrs_size: be_u64
@@ -113,37 +114,37 @@ named_args!(
         >> st_blocks: be_i64
         >> st_block_size: be_i32
         >> (Node {
-            name: name,
-            is_tree: is_tree,
-            has_missing_items: has_missing_items,
+            name,
+            is_tree,
+            has_missing_items,
             data_compression_type:
                 unwrap_compression_type(data_is_compressed, data_compression_type),
             data_blob_keys: blob_keys,
-            data_size: data_size,
+            data_size,
             xattrs_compression_type:
                 unwrap_compression_type(xattrs_are_compressed, xattrs_compression_type),
-            xattrs_blob_key: xattrs_blob_key,
-            xattrs_size: xattrs_size,
+            xattrs_blob_key,
+            xattrs_size,
             acl_compression_type:
                 unwrap_compression_type(acl_is_compressed, acl_compression_type),
-            acl_blob_key: acl_blob_key,
-            user_id: user_id,
-            group_id: group_id,
-            file_mode: file_mode,
-            flags: flags,
+            acl_blob_key,
+            user_id,
+            group_id,
+            file_mode,
+            flags,
             finder_flags: ((extended_finder_flags as u64) << 32) | (finder_flags as u64),
             mod_time: as_datetime(mtime_sec, mtime_nsec),
             c_time: as_datetime(ctime_sec, ctime_nsec),
             create_time: as_datetime(create_time_sec, create_time_nsec),
-            file_type: file_type,
+            file_type,
             creator: file_creator,
-            hide_extension: hide_extension,
-            st_dev: st_dev,
-            st_ino: st_ino,
-            st_nlink: st_nlink,
-            st_rdev: st_rdev,
-            st_blocks: st_blocks,
-            st_block_size: st_block_size,
+            hide_extension,
+            st_dev,
+            st_ino,
+            st_nlink,
+            st_rdev,
+            st_blocks,
+            st_block_size,
         })
     )
 );
@@ -152,7 +153,7 @@ named_args!(
     nodes(version: usize)<Vec<Node>>,
     do_parse!(
         n: be_u32
-        >> v: many_m_n!(1 as usize, 2 as usize, call!(node, version))
+        >> v: many_m_n!(n as usize, n as usize, call!(node, version))
         >> (v)
     )
 );
@@ -161,9 +162,9 @@ named!(
     tree<Tree>,
     do_parse!(
         version: call!(version_header, "TreeV".as_bytes())
-            >> xattrs_compressed: cond!(version >= 12 && version <= 18, boolean)
+            >> xattrs_compressed: cond!((12..=18).contains(&version), boolean)
             >> xattrs_compression_type: cond!(version >= 19, compression_type)
-            >> acl_compressed: cond!(version >= 12 && version <= 18, boolean)
+            >> acl_compressed: cond!((12..=18).contains(&version), boolean)
             >> acl_compression_type: cond!(version >= 19, compression_type)
             >> xattrs_blob_key: call!(maybe_blob_key, version)
             >> xattrs_blob_size: be_u64
@@ -184,38 +185,38 @@ named!(
             >> ctime_nsec: be_i64
             >> st_blocks: be_i64
             >> st_block_size: be_u32
-            >> size_on_disk: cond!(version >= 11 && version <= 16, be_u64)
+            >> size_on_disk: cond!((11..=16).contains(&version), be_u64)
             >> create_time_sec: be_i64
             >> create_time_nsec: be_i64
             >> missing_nodes: cond!(version >= 18, missing_nodes)
             >> nodes: call!(nodes, version)
             >> (Tree {
-                version: version,
+                version,
                 xattrs_compression_type: unwrap_compression_type(
                     xattrs_compressed,
                     xattrs_compression_type
                 ),
                 acl_compression_type: unwrap_compression_type(acl_compressed, acl_compression_type),
-                xattrs_blob_key: xattrs_blob_key,
-                xattrs_blob_size: xattrs_blob_size,
-                acl_blob_key: acl_blob_key,
+                xattrs_blob_key,
+                xattrs_blob_size,
+                acl_blob_key,
                 user_id: uid,
                 group_id: gid,
-                file_mode: file_mode,
+                file_mode,
                 mod_time: as_datetime(mtime_sec, mtime_nsec),
-                flags: flags,
+                flags,
                 finder_flags: ((extended_finder_flags as u64) << 32) | (finder_flags as u64),
-                st_dev: st_dev,
-                st_ino: st_ino,
-                st_nlink: st_nlink,
-                st_rdev: st_rdev,
+                st_dev,
+                st_ino,
+                st_nlink,
+                st_rdev,
                 c_time: as_datetime(ctime_sec, ctime_nsec),
-                st_blocks: st_blocks,
+                st_blocks,
                 st_block_size: st_block_size as usize,
                 size_on_disk: size_on_disk.unwrap_or(0),
                 creation_time: as_datetime(create_time_sec, create_time_nsec),
                 missing_nodes: missing_nodes.unwrap_or_else(Vec::new),
-                nodes: nodes,
+                nodes,
             })
     )
 );
@@ -229,13 +230,14 @@ pub fn parse(data: &[u8]) -> Result<Tree, RepoError> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::commit::CompressionType;
+    use crate::CompressionType;
 
-    const VALID_TREE_V108: &[u8] = include_bytes!("tree_v018.blob");
+    const VALID_ROOT_TREE_V18: &[u8] = include_bytes!("tree_v18_parent.blob");
+    const VALID_CHILD_TREE_V18: &[u8] = include_bytes!("tree_v18_child.blob");
 
     #[test]
-    fn parse_v18_tree() {
-        match tree(VALID_TREE_V108) {
+    fn parse_v18_root_tree() {
+        match tree(VALID_ROOT_TREE_V18) {
             Ok((_, t)) => {
                 assert_eq!(t.version, 18);
                 assert_eq!(t.xattrs_compression_type, CompressionType::None);
@@ -250,8 +252,24 @@ mod test {
     }
 
     #[test]
+    fn parse_v18_child_tree() {
+        match tree(VALID_CHILD_TREE_V18) {
+            Ok((_, t)) => {
+                assert_eq!(t.version, 18);
+                assert_eq!(t.xattrs_compression_type, CompressionType::None);
+                assert_eq!(t.acl_compression_type, CompressionType::None);
+
+                println!("Tree: {:?}", t)
+            }
+            Err(e) => {
+                assert!(false, "Parse failed");// with {:?}", e);
+            }
+        }
+    }
+
+    #[test]
     fn parse_v18_node() {
-        let input = &VALID_TREE_V108[0xA2..0x193];
+        let input = &VALID_ROOT_TREE_V18[0xA2..0x193];
         match node(input, 18) {
             Ok((remainder, n)) => {
                 assert_eq!(remainder.len(), 0, "All input should be consumed");
@@ -270,7 +288,7 @@ mod test {
 
     #[test]
     fn parse_v18_blob_key() {
-        let input = &VALID_TREE_V108[0xB8..0xF8];
+        let input = &VALID_ROOT_TREE_V18[0xB8..0xF8];
         match blob_key(input, 18) {
             Ok((remainder, k)) => {
                 assert_eq!(remainder.len(), 0, "Input must be fully consumed");

@@ -1,7 +1,7 @@
 use std::convert::From;
 use std::ops::Div;
 
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Default)]
 pub struct Key(String);
 
 impl Key {

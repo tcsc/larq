@@ -3,7 +3,7 @@ mod cmd;
 mod config;
 
 use gumdrop::Options;
-use log::{debug, error, info, LevelFilter};
+use log::{debug, error, LevelFilter};
 use std::{process::exit, sync::Arc};
 
 use arq::s3;
@@ -14,11 +14,13 @@ use simple_logger::SimpleLogger;
 fn main() {
     let args = Args::parse_args_default_or_exit();
 
-    let log_level = if args.verbose {
-        LevelFilter::Trace
-    } else {
-        LevelFilter::Info
-    };
+
+    let log_level = match args.verbose {
+                        0 => LevelFilter::Warn,
+                        1 => LevelFilter::Info,
+                        2 => LevelFilter::Debug,
+                        _ => LevelFilter::Trace,
+                    };
     SimpleLogger::new().with_level(log_level).init().unwrap();
 
     debug!("Loading config from {:?}...", args.config_file);
@@ -45,6 +47,7 @@ async fn dispatch_cmd(cfg: &Config, secret: &str, cmd: Command) -> i32 {
         &cfg.access_key_id,
         &cfg.secret_key,
         rusoto_core::Region::ApSoutheast2,
+        Some(std::path::PathBuf::from("./cache"))
     )
     .expect("Transport construction");
     let repo = arq::Repository::new(secret, Arc::new(transport));
@@ -54,7 +57,6 @@ async fn dispatch_cmd(cfg: &Config, secret: &str, cmd: Command) -> i32 {
         Command::ListFolders(opts) => cmd::list_folders(&repo, opts).await,
         Command::ListFiles(opts) => cmd::list_files(&repo, opts).await.map_err(|e| {
             log::error!("Failed: {:?}", e);
-            ()
         }),
     };
 

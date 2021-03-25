@@ -7,25 +7,12 @@ use nom::{
     number::streaming::{be_u64, be_u8},
 };
 
-use crate::{constructs::*, RepoError, SHA1};
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum CompressionType {
-    None,
-    GZip,
-    LZ4,
-}
-
-impl CompressionType {
-    pub fn from(i: u32) -> Option<CompressionType> {
-        match i {
-            0 => Some(CompressionType::None),
-            1 => Some(CompressionType::GZip),
-            2 => Some(CompressionType::LZ4),
-            _ => None,
-        }
-    }
-}
+use crate::{
+    constructs::*,
+    CompressionType, 
+    RepoError,
+    SHA1
+};
 
 #[derive(Debug)]
 struct FileError {
@@ -34,7 +21,7 @@ struct FileError {
 }
 
 #[derive(Debug)]
-pub struct Commit {
+pub struct CommitRecord {
     version: usize,
     author: Option<String>,
     comment: Option<String>,
@@ -58,7 +45,7 @@ named!(
             >> error: non_null_string
             >> (FileError {
                 filename: path,
-                error: error
+                error
             })
     )
 );
@@ -92,7 +79,7 @@ named_args!(
 );
 
 named!(
-    commit<Commit>,
+    commit_record<CommitRecord>,
     do_parse!(
         version: call!(version_header, "CommitV".as_bytes())
             >> author: maybe_string
@@ -106,38 +93,38 @@ named!(
                 )
             >> tree_sha: map_res!(non_null_string, TryInto::<SHA1>::try_into)
             >> expand_key: cond!(version >= 4, be_u8)
-            >> compressed: cond!(version >= 8 && version <= 9, boolean)
+            >> compressed: cond!((8..=9).contains(&version), boolean)
             >> compression_type: cond!(version >= 10, compression_type)
             >> path: maybe_string
             >> common_ancestor: cond!(version <= 7, maybe_string)
-            >> common_ancestor_stretched: cond!(version >= 4 && version <= 7, be_u8)
+            >> common_ancestor_stretched: cond!((4..=7).contains(&version), be_u8)
             >> time_stamp: date_time
             >> file_errors: cond!(version >= 3, file_errors)
             >> missing_nodes: cond!(version >= 8, be_u8)
             >> is_complete: cond!(version >= 9, be_u8)
             >> plist: cond!(version >= 5, data)
             >> arq_version: cond!(version >= 12, non_null_string)
-            >> (Commit {
-                version: version,
-                author: author,
-                comment: comment,
-                parents: parents,
-                tree_sha: tree_sha,
+            >> (CommitRecord {
+                version,
+                author,
+                comment,
+                parents,
+                tree_sha,
                 expand_key: expand_key.map(|e| e != 0).unwrap_or(false),
                 compression_type: unwrap_compression_type(compressed, compression_type),
-                path: path,
+                path,
                 timestamp: time_stamp,
                 file_errors: file_errors.unwrap_or_else(Vec::new),
                 missing_nodes: missing_nodes.map(|e| e != 0),
                 is_complete: is_complete.map(|e| e != 0),
                 plist: plist.unwrap_or_else(Vec::new),
-                arq_version: arq_version,
+                arq_version,
             })
     )
 );
 
-pub fn parse(data: &[u8]) -> Result<Commit, RepoError> {
-    commit(data)
+pub fn parse(data: &[u8]) -> Result<CommitRecord, RepoError> {
+    commit_record(data)
         .map(|(_, c)| c)
         .map_err(|_| RepoError::MalformedData)
 }
@@ -145,10 +132,12 @@ pub fn parse(data: &[u8]) -> Result<Commit, RepoError> {
 #[cfg(test)]
 mod test {
     const COMMIT_V9: &[u8] = include_bytes!("commit.blob");
+    use crate::mocks::*;
 
     #[test]
     fn test_parse_v9() {
-        let (_, c) = super::commit(COMMIT_V9).expect("Parsing commit should succeed");
+        let (_, c) = super::commit_record(COMMIT_V9)
+            .expect("Parsing commit should succeed");
         assert_eq!(c.version, 9);
     }
 }

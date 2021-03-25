@@ -37,8 +37,8 @@ pub struct Args {
     #[options(help = "Use config file")]
     pub config_file: PathBuf,
 
-    #[options(help = "Be more verbose")]
-    pub verbose: bool,
+    #[options(count, help = "Be more verbose")]
+    pub verbose: u32,
 
     #[options(help = "Print help message and exit")]
     help: bool,

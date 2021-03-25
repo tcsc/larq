@@ -1,4 +1,4 @@
-use crate::{commit::CompressionType, RepoError};
+use crate::{CompressionType, RepoError};
 
 pub fn decompress(input: &[u8], compression_type: CompressionType) -> Result<Vec<u8>, RepoError> {
     use std::io::Write;

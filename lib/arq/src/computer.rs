@@ -1,6 +1,6 @@
 use arq_crypto::ObjectDecrypter;
 use arq_storage::{Include, Store};
-use futures::future;
+use futures::{TryFutureExt, future};
 use log::{debug, error, info};
 use serde::Deserialize;
 use std::{fmt, sync::Arc};
@@ -82,22 +82,22 @@ impl Computer {
 
     pub async fn get_folder(&self, folder_id: &str) -> Result<Folder, RepoError> {
         let key = StorageKey::from(format!("{}/buckets/{}", self.info.id, folder_id));
-        let info = fetch_folder(
+        fetch_folder(
             self.store.as_ref(),
             key.clone(),
             self.bucket_decrypter.as_ref(),
         )
-        .await?;
-        Ok(Folder::new(
+        .and_then(|info| {Folder::new(
             &self.info.id,
             info,
             &self.store,
-            &self.decrypter,
-        ))
+            &self.decrypter
+        )})
+        .await
     }
 }
 
-const V1_HEADER: &'static [u8] = "encrypted".as_bytes();
+const V1_HEADER: &[u8] = "encrypted".as_bytes();
 
 async fn fetch_folder(
     store: &dyn Store,

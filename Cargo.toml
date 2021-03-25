@@ -5,4 +5,5 @@ members = [
     "lib/arq-s3",
     "lib/arq-storage",
     "lib/arq",
+    "lib/throttled",
 ]

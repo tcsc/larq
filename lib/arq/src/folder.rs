@@ -1,13 +1,14 @@
-use std::{convert::TryInto, path::PathBuf, sync::Arc};
+use std::{convert::TryInto, path::{Path, PathBuf}, sync::Arc};
 
 use crate::{
+    commit::Commit,
     crypto::ObjectDecrypter,
     format_uuid,
     packset::Packset,
     storage::{self, Store},
-    tree::TreeIndex,
     RepoError, SHA1,
 };
+
 use log::info;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -26,58 +27,70 @@ pub struct FolderInfo {
 
 pub struct Folder {
     pub info: FolderInfo,
-    store: Arc<dyn Store>,
+    packset: Packset,
     decrypter: Arc<dyn ObjectDecrypter>,
     computer_id: String,
 }
 
-pub type CommitId = SHA1;
-
 impl Folder {
-    pub fn new(
+    pub async fn new(
         computer_id: &str,
         info: FolderInfo,
         store: &Arc<dyn Store>,
         decrypter: &Arc<dyn ObjectDecrypter>,
-    ) -> Folder {
-        Folder {
+    ) -> Result<Folder, RepoError> {
+        let packset = load_packset(computer_id, &info, store).await?;
+        let f = Folder {
             info,
-            store: store.clone(),
+            packset,
             decrypter: decrypter.clone(),
             computer_id: computer_id.to_owned(),
-        }
+        };
+        Ok(f)
     }
 
-    pub async fn get_latest_commit(&self) -> Result<CommitId, RepoError> {
+    pub async fn get_latest_commit<'a>(&'a self) -> Result<Commit<'a>, RepoError> {
         let key = storage::Key::from(format!(
             "{}/bucketdata/{}/refs/heads/master",
             self.computer_id,
             format_uuid(&self.info.id)
         ));
-        let content = self.store.get(key).await.map_err(RepoError::Storage)?;
+        let content = self.packset.store().get(key).await.map_err(RepoError::Storage)?;
 
-        String::from_utf8(content)
+        let commit_sha = String::from_utf8(content)
             .ok()
             .and_then(|s| hex::decode(&s[..s.len() - 1]).ok())
             .and_then(|v| v.try_into().ok())
-            .ok_or(RepoError::MalformedData)
+            .ok_or(RepoError::MalformedData)?;
+
+        self.get_commit(commit_sha).await
     }
 
-    //    pub async fn list_commits(&self) -> Result<CommitId, RepoError> {}
-
-    pub async fn load_tree_index(&mut self) -> Result<TreeIndex, RepoError> {
-        info!("Fetching tree pack index");
-        let key = storage::Key::from(format!(
-            "{}/packsets/{}-trees/",
-            self.computer_id,
-            format_uuid(&self.info.id)
-        ));
-
-        // load the commit packset (at least the index)
-        Packset::new(key, &self.store)
-            .await
-            .map(|ps| TreeIndex::new(ps, &self.decrypter))
+    pub async fn get_commit<'a>(&'a self, commit_id: SHA1) -> Result<Commit<'a>, RepoError> {
+        log::info!("Loading commit {}", commit_id);
+        self.packset.load(&commit_id).await.and_then(|blob| {
+            self.decrypter
+                .decrypt_object(&blob.content)
+                .map_err(|_e| RepoError::CryptoError)
+                .and_then(|d| Commit::parse(&d, &self.packset, &self.decrypter))
+        })
     }
+
+    pub fn local_path(&self) -> &Path {
+        &self.info.local_path
+    }
+}
+
+async fn load_packset(computer_id: &str, info: &FolderInfo, store: &Arc<dyn Store>) -> Result<Packset, RepoError> {
+    info!("Fetching tree pack index");
+    let key = storage::Key::from(format!(
+        "{}/packsets/{}-trees/",
+        computer_id,
+        format_uuid(&info.id)
+    ));
+
+    // load the metadata packset (at least the index)
+    Packset::new(key, &store).await
 }
 
 #[cfg(test)]

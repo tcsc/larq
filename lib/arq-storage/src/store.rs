@@ -29,6 +29,9 @@ bitflags! {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+// TODO: maybe allow some sort of ranged-get so that we can get only the parts of an object 
+//       we need at any one time.
+
 #[trait_async]
 pub trait Store: Send + Sync {
     async fn list_contents(&self, path: &str, flags: Include) -> Result<Vec<ObjectInfo>>;

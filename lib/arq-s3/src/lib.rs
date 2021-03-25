@@ -1,3 +1,6 @@
+mod cache;
+
+use std::path::PathBuf;
 use arq_storage::{Error as StorageError, Include, Key, ObjectInfo, Result as StorageResult};
 use log::{debug, error};
 
@@ -11,11 +14,14 @@ use rusoto_s3::{
     Object as S3Object, S3Client, S3,
 };
 
+use cache::Cache;
+
 use trait_async::trait_async;
 
 pub struct Store {
     bucket: String,
     s3: S3Client,
+    cache: Cache,
 }
 
 impl Store {
@@ -24,6 +30,7 @@ impl Store {
         key_id: &str,
         secret: &str,
         region: Region,
+        cache_dir: Option<std::path::PathBuf>
     ) -> Result<Store, TlsError> {
         let creds = StaticProvider::new(key_id.to_string(), secret.to_string(), None, None);
         let dispatcher = HttpClient::new()?;
@@ -32,6 +39,7 @@ impl Store {
         let t = Store {
             bucket: bucket.to_string(),
             s3: client,
+            cache: Cache::new(cache_dir),
         };
 
         Ok(t)
@@ -145,6 +153,10 @@ impl arq_storage::Store for Store {
     }
 
     async fn get(&self, key: Key) -> StorageResult<Vec<u8>> {
+        if let Some(buf) = self.cache.read(&key) {
+            return Ok(buf)
+        }
+
         let req = GetObjectRequest {
             bucket: self.bucket.clone(),
             key: key.to_string(),
@@ -163,6 +175,9 @@ impl arq_storage::Store for Store {
                 .await
                 .map_err(|_| StorageError::NetworkError)?,
         };
+
+        self.cache.write(&key, &content);
+
         Ok(content)
     }
 }

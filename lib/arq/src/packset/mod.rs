@@ -51,4 +51,8 @@ impl Packset {
         let start = loc.offset as usize;
         pack::parse_object(&packfile_data[start..])
     }
+
+    pub fn store(&self) -> &Arc<dyn Store> {
+        &self.store
+    }
 }

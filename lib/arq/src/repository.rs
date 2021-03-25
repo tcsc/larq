@@ -41,11 +41,10 @@ impl Repository {
 
     pub async fn get_computer(&self, id: String) -> Result<Computer, RepoError> {
         let machine_key = StorageKey::from(id);
-        let info = fetch_computer_info(self.store.as_ref(), machine_key.clone()).await?;
 
         let salt = self
             .store
-            .get(machine_key / "salt")
+            .get(machine_key.clone() / "salt")
             .await
             .map_err(RepoError::Storage)?;
 
@@ -59,6 +58,8 @@ impl Repository {
             .map(ObjectDecrypterV1::new)
             .map(|d| Arc::new(d) as Arc<dyn ObjectDecrypter>)
             .map_err(|_| RepoError::CryptoError)?;
+
+        let info = fetch_computer_info(self.store.as_ref(), machine_key.clone()).await?;
 
         Ok(Computer::new(
             info,

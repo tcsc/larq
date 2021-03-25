@@ -11,9 +11,14 @@ arq-storage = { path="../arq-storage" }
 chrono = "0.4"
 flate2 = "1.0.20"
 futures = "0.3"
+glob="0.3"
 hex = "0.4"
 log="0.4"
 nom = "6.1"
 plist="1.1"
 serde = { version = "1.0", features = ["derive"] }
+throttled = {path="../throttled"}
 uuid = { version = "0.8", features = ["serde"] }
+
+[dev-dependencies]
+async-trait = "0.1"

@@ -25,7 +25,7 @@ pub struct CryptoKey {
 }
 
 impl CryptoKey {
-    pub fn new(secret: &str, salt: &[u8]) -> Result<CryptoKey, ()> {
+    pub fn new(secret: &str, salt: &[u8]) -> Result<CryptoKey, CryptoError> {
         let mut key_bytes: [u8; KEY_LEN] = [0; KEY_LEN];
 
         pkcs5::pbkdf2_hmac(
@@ -35,7 +35,7 @@ impl CryptoKey {
             MessageDigest::sha1(),
             &mut key_bytes[..],
         )
-        .map_err(|_| ())?;
+        .map_err(CryptoError::LibraryError)?;
 
         let cipher = Cipher::aes_256_cbc();
 
@@ -46,7 +46,7 @@ impl CryptoKey {
             Some(salt),
             KEY_ITER as i32,
         )
-        .map_err(|_| ())
+        .map_err(|_| CryptoError::Unexpected)
         .map(|k| CryptoKey {
             key: k.key,
             iv: k.iv,
@@ -55,12 +55,12 @@ impl CryptoKey {
     }
 
     pub fn decrypt(&self, buf: &[u8]) -> Result<Vec<u8>, CryptoError> {
-        let iv = self.iv.as_ref().map(Vec::as_slice);
+        let iv = self.iv.as_deref();
         decrypt(self.cipher, &self.key[..], iv, buf).map_err(|_| CryptoError::BadKey)
     }
 
     pub fn encrypt(&self, buf: &[u8]) -> Result<Vec<u8>, ()> {
-        let iv = self.iv.as_ref().map(Vec::as_slice);
+        let iv = self.iv.as_deref();
         encrypt(self.cipher, &self.key[..], iv, buf).map_err(|_| ())
     }
 }
