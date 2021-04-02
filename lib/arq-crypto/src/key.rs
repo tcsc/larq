@@ -59,8 +59,8 @@ impl CryptoKey {
         decrypt(self.cipher, &self.key[..], iv, buf).map_err(|_| CryptoError::BadKey)
     }
 
-    pub fn encrypt(&self, buf: &[u8]) -> Result<Vec<u8>, ()> {
+    pub fn encrypt(&self, buf: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let iv = self.iv.as_deref();
-        encrypt(self.cipher, &self.key[..], iv, buf).map_err(|_| ())
+        encrypt(self.cipher, &self.key[..], iv, buf).map_err(CryptoError::LibraryError)
     }
 }

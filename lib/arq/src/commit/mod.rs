@@ -1,7 +1,7 @@
 mod record;
 
 use std::{
-    path::{self, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -43,17 +43,17 @@ impl<'a> Commit<'a> {
 
     pub async fn list_files(&self, pattern: &str) -> Result<(), RepoError> {
         let commit = &self.record;
-        let patterns = parse_pattern(pattern)?;
+        let _patterns = parse_pattern(pattern)?;
 
         struct Child {
-            pattern_index: isize,
+            //pattern_index: isize,
             keys: Vec<BlobKey>,
             path: PathBuf,
             compression_type: CompressionType,
         };
 
         let root = Child {
-            pattern_index: -1,
+            //pattern_index: -1,
             path: PathBuf::new(),
             keys: vec![BlobKey {
                 sha: commit.tree_sha.clone(),
@@ -77,11 +77,6 @@ impl<'a> Commit<'a> {
             )
             .await
             .and_then(|d| {
-                use std::io::Write;
-                let mut f = std::fs::File::create("child.blob").expect("file");
-                f.write_all(&d);
-                drop(f);
-
                 tree::parse(&d)
             })
             .map_err(|e| {
@@ -92,7 +87,7 @@ impl<'a> Commit<'a> {
             for n in t.nodes {
                 if n.is_tree {
                     let child = Child {
-                        pattern_index: 0, // not used yet
+                        //pattern_index: 0, // not used yet
                         path: j.path.join(n.name),
                         keys: n.data_blob_keys,
                         compression_type: n.data_compression_type,

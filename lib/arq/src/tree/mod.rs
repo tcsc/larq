@@ -10,10 +10,11 @@ use crate::{CompressionType, SHA1};
 pub use index::*;
 pub use parser::parse;
 
+/// The storage types we know about
 #[derive(Debug)]
 pub enum StorageType {
-    None,
-    S3,
+    None,      // Does not refer to a physical object
+    S3,        // Normal immediate-access storage
     Glacier,   // Legacy Glacier
     S3Glacier, // Glacier under S3
 }
@@ -35,9 +36,14 @@ impl TryFrom<u32> for StorageType {
     }
 }
 
+/// A blob key describes both the identity of a blob and the parameters
+/// you need to retrieve it.
 #[derive(Debug)]
 pub struct BlobKey {
+    /// The identity of the blob 
     pub sha: SHA1,
+
+    /// Is the blob enctrypted with a stretched (salted) key, or the raw key?
     pub stretch_key: bool,
     pub storage_type: StorageType,
     pub size: Option<u64>,

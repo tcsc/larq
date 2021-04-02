@@ -1,50 +1,61 @@
 use std::{
     convert::{TryFrom, TryInto},
-    fmt::format,
     str,
 };
 
 use chrono::prelude::*;
 
 use nom::{
-    cond, do_parse, many_m_n, map, map_res, named,
+    bytes::streaming::{tag, take},
+    combinator::{map, map_res},
+    error::ParseError,
+    multi::{length_data, many_m_n},
     number::streaming::{be_u32, be_u64, be_u8},
+    sequence::preceded,
+    IResult,
+    Parser,
 };
 
 use crate::{CompressionType, SHA1};
 
-named!(
-    pub boolean<bool>,
-    map!(be_u8, |b| (b != 0))
-);
+pub fn vec_of<'a, O, E, F>(i: &'a [u8], parse: F) -> IResult<&'a [u8], Vec<O>, E>
+where
+    F: Parser<&'a [u8], O, E>,
+    E: ParseError<&'a [u8]>
+{
+    let (i, count) = map(be_u64, |x| x as usize)(i)?;
+    many_m_n(count, count, parse)(i)
+}
 
-named!(
-    sized_string<String>,
-    do_parse!(
-        n: be_u64
-            >> s: map_res!(many_m_n!(n as usize, n as usize, be_u8), String::from_utf8)
-            >> (s)
-    )
-);
+pub fn boolean(i: &[u8]) -> IResult<&[u8], bool> {
+    map(be_u8, |b| b != 0)(i)
+}
 
-named!(
-    pub maybe_string<Option<String>>,
-    do_parse!(
-        is_present: boolean
-        >> s: cond!(is_present, sized_string) >> (s))
-);
+pub fn sized_string(i: &[u8]) -> IResult<&[u8], String> {
+    map_res(
+        length_data(be_u64), 
+        |b: &[u8]| str::from_utf8(b).map(|s| s.to_owned())
+    )(i)
+}
 
-named!(
-    pub non_null_string<String>,
-    map_res!(maybe_string, |s: Option<String>| {
+pub fn maybe_string(i: &[u8]) -> IResult<&[u8], Option<String>> {
+    let (i, present) = boolean(i)?;
+    if present {
+        map(sized_string, Some)(i)
+    } else {
+        Ok((i, None))
+    }
+}
+
+pub fn non_null_string(i: &[u8]) -> IResult<&[u8], String> {
+    map_res(maybe_string, |s: Option<String>| {
         s.ok_or("String may not be null")
-    })
-);
+    })(i)
+}
 
-named!(
-    pub sha1<SHA1>,
-    map_res!(many_m_n!(20, 20, be_u8), |v: Vec<u8>| v.try_into())
-);
+pub fn binary_sha1(i: &[u8]) -> IResult<&[u8], SHA1> {
+    map_res(take(20usize), |s: &[u8]| s.try_into())(i)
+}
 
 fn unpack_timestamp(ms: u64) -> DateTime<Utc> {
     let s = (ms / 1000) as i64;
@@ -53,20 +64,21 @@ fn unpack_timestamp(ms: u64) -> DateTime<Utc> {
     DateTime::<Utc>::from_utc(naive_time, Utc)
 }
 
-named!(
-    pub maybe_date_time<Option<DateTime<Utc>>>,
-    do_parse!(
-        is_present: be_u8
-        >> milliseconds: cond!(is_present != 0, be_u64)
-        >> (milliseconds.map(unpack_timestamp))
-    )
-);
+pub fn maybe_date_time(i: &[u8]) -> IResult<&[u8], Option<DateTime<Utc>>> {
+    let (i, present) = boolean(i)?;
+    if present {
+        let (i, ts) = map(be_u64, unpack_timestamp)(i)?;
+        Ok((i, Some(ts)))
+    } else {
+        Ok((i, None))
+    }
+}
 
-named!(
-    pub date_time<DateTime<Utc>>,
-    map_res!(maybe_date_time,
-        |dt: Option<DateTime<Utc>>| dt.ok_or("DateTime may not be null"))
-);
+pub fn date_time(i: &[u8]) -> IResult<&[u8], DateTime<Utc>> {
+    map_res(maybe_date_time, |dt: Option<DateTime<Utc>>| {
+        dt.ok_or("DateTime may not be null")
+    })(i)
+}
 
 fn decode_version(s: &[u8]) -> Result<usize, ()> {
     match str::from_utf8(s) {
@@ -75,26 +87,18 @@ fn decode_version(s: &[u8]) -> Result<usize, ()> {
     }
 }
 
-pub fn version_header<'a>(input: &'a [u8], prefix: &'static [u8]) -> nom::IResult<&'a [u8], usize> {
-    use nom::{
-        bytes::streaming::{tag, take},
-        combinator::map_res,
-        sequence::preceded,
-    };
-
-    preceded(tag(prefix), map_res(take(3usize), decode_version))(input)
+pub fn version_header<'a>(prefix: &'static [u8]) -> impl FnMut(&'a[u8]) -> IResult<&'a [u8], usize> {
+    preceded(tag(prefix), map_res(take(3usize), decode_version))
 }
 
-named!(
-    pub compression_type<CompressionType>,
-    map_res!(
-        be_u32,
+pub fn compression_type(i: &[u8]) -> IResult<&[u8], CompressionType> {
+    map_res(be_u32,
         |x| {
             CompressionType::try_from(x).
                 map_err(|e| format!("Invalid compression type: {}", e))
         }
-    )
-);
+    )(i)
+}
 
 pub fn unwrap_compression_type(
     flag: Option<bool>,
@@ -111,23 +115,19 @@ pub fn unwrap_compression_type(
     .unwrap_or(CompressionType::None)
 }
 
-named!(
-    pub sha_string<SHA1>,
-    map_res!(non_null_string, |s: String| {
-        SHA1::try_from(&s[..])
-    })
-);
+pub fn sha_string(i: &[u8]) -> IResult<&[u8], SHA1> {
+    map_res(non_null_string, |s: String| SHA1::try_from(&s[..]))(i)
+}
 
-named!(
-    pub maybe_sha_string<Option<SHA1>>,
-    map_res!(maybe_string, |text: Option<String>| {
+pub fn maybe_sha_string(i: &[u8]) -> IResult<&[u8], Option<SHA1>> {
+    map_res(maybe_string, |text: Option<String>| {
         if let Some(s) = text {
             SHA1::try_from(&s[..]).map(Some)
         } else {
             Ok(None)
         }
-    })
-);
+    })(i)
+}
 
 #[cfg(test)]
 mod test {

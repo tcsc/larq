@@ -1,5 +1,4 @@
 use nom::{
-    do_parse, many_m_n, named,
     number::streaming::{be_u64, be_u8},
 };
 
@@ -12,20 +11,18 @@ pub struct PackedObject {
     pub content: Vec<u8>,
 }
 
-named!(
-    packed_object<PackedObject>,
-    do_parse!(
-        mime_type: maybe_string
-            >> name: maybe_string
-            >> len: be_u64
-            >> content: many_m_n!(len as usize, len as usize, be_u8)
-            >> (PackedObject {
-                mime_type,
-                name,
-                content
-            })
-    )
-);
+fn packed_object(i: &[u8]) -> nom::IResult<&[u8], PackedObject> {
+    let (i, mime_type) = maybe_string(i)?;
+    let (i, name) = maybe_string(i)?;
+    let (i, len) = be_u64(i).map(|(i, x)| (i, x as usize))?;
+    let (i, content) = nom::multi::many_m_n(len, len, be_u8)(i)?;
+    let result = PackedObject {
+        mime_type,
+        name,
+        content
+    };
+    Ok((i, result))
+}
 
 pub fn parse_object(data: &[u8]) -> Result<PackedObject, RepoError> {
     log::info!("Parsing {} byte packed object", data.len());

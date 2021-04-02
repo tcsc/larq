@@ -1,17 +1,19 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use futures::future::{self, TryFutureExt};
+use futures::future::TryFutureExt;
 
 use log::info;
 
 use nom::{
-    do_parse, many_m_n, map_res, named,
+    combinator::{map_res},
+    bytes::streaming::{tag, take},
+    multi::many_m_n,
     number::streaming::{be_u32, be_u64},
-    tag, take,
+    IResult
 };
 
 use crate::{
-    constructs::sha1,
+    constructs::binary_sha1,
     storage::{Include, Key, Store},
     RepoError, SHA1,
 };
@@ -38,40 +40,24 @@ pub struct PackedItem {
 
 pub type PackIndex = HashMap<SHA1, PackedItem>;
 
-named!(
-    packed_index_item<PackedIndexItem>,
-    do_parse!(
-        offset: be_u64
-            >> length: be_u64
-            >> sha: sha1
-            >> take!(4)
-            >> (PackedIndexItem {
-                sha,
-                offset,
-                length
-            })
-    )
-);
+fn packed_index_item(i: &[u8]) -> IResult<&[u8], PackedIndexItem> {
+    let (i, offset) = be_u64(i)?;
+    let (i, length) = be_u64(i)?;
+    let (i, sha) = binary_sha1(i)?;
+    let (i, _) = take(4usize)(i)?;
+    let item = PackedIndexItem { sha, offset, length };
+    Ok((i, item))
+}
 
-named!(
-    packed_index<PackedIndex>,
-    do_parse!(
-        tag!(&[0xff, 0x74, 0x4f, 0x63])
-            >> version: be_u32
-            >> counts: map_res!(many_m_n!(256, 256, be_u32), TryInto::<[u32; 256]>::try_into)
-            >> entries:
-                many_m_n!(
-                    counts[0xFF] as usize,
-                    counts[0xFF] as usize,
-                    packed_index_item
-                )
-            >> (PackedIndex {
-                version,
-                counts,
-                entries,
-            })
-    )
-);
+fn packed_index(i: &[u8]) -> IResult<&[u8], PackedIndex> {
+    let (i, _) = tag(&[0xff, 0x74, 0x4f, 0x63])(i)?;
+    let (i, version) = be_u32(i)?;
+    let (i, counts) = map_res(many_m_n(256, 256, be_u32), TryInto::<[u32; 256]>::try_into)(i)?;
+    let count = counts[0xFF] as usize;
+    let (i, entries) = many_m_n(count, count, packed_index_item)(i)?;
+    let idx = PackedIndex { version, counts, entries };
+    Ok((i, idx))
+}
 
 fn parse_blob(data: &[u8]) -> Option<PackedIndex> {
     packed_index(data).map(|(_, i)| i).ok()

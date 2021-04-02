@@ -3,8 +3,10 @@ use std::convert::TryInto;
 use chrono::prelude::*;
 
 use nom::{
-    call, cond, do_parse, many_m_n, map_res, named, named_args,
-    number::streaming::{be_u64, be_u8},
+    combinator::{cond, map_res, },
+    multi::{length_data, many_m_n},
+    number::streaming::be_u64,
+    IResult,
 };
 
 use crate::{constructs::*, CompressionType, RepoError, SHA1};
@@ -33,27 +35,15 @@ pub struct CommitRecord {
     arq_version: Option<String>,
 }
 
-named!(
-    file_error<FileError>,
-    do_parse!(
-        path: non_null_string
-            >> error: non_null_string
-            >> (FileError {
-                filename: path,
-                error
-            })
-    )
-);
+fn file_error(i: &[u8]) -> IResult<&[u8], FileError> {
+    let (i, path) = non_null_string(i)?;
+    let (i, error) = non_null_string(i)?;
+    Ok((i, FileError { filename: path, error }))
+}
 
-named!(
-    file_errors<Vec<FileError>>,
-    do_parse!(n: be_u64 >> errors: many_m_n!(n as usize, n as usize, file_error) >> (errors))
-);
-
-named!(
-    data<Vec<u8>>,
-    do_parse!(n: be_u64 >> data: many_m_n!(n as usize, n as usize, be_u8) >> (data))
-);
+fn file_errors(i: &[u8]) -> IResult<&[u8], Vec<FileError>> {
+    vec_of(i, file_error)
+}
 
 #[derive(Debug)]
 pub struct ParentKey {
@@ -61,62 +51,57 @@ pub struct ParentKey {
     expand_key: bool,
 }
 
-named_args!(
-    parent_key(version: usize)<ParentKey>,
-    do_parse!(
-        sha: sha_string
-        >> expand: cond!(version >= 4, boolean)
-        >> ( ParentKey {
-            id: sha,
-            expand_key: expand.unwrap_or(false)
-        })
-    )
-);
+fn parent_key(commit_version: usize) -> impl FnMut(&[u8]) -> IResult<&[u8], ParentKey> {
+    move |i: &[u8]| {
+        let (i, sha) = sha_string(i)?;
+        let (i, expand) = cond(commit_version >= 4, boolean)(i)?;
+        let key = ParentKey { id: sha, expand_key: expand.unwrap_or(false) };
+        Ok((i, key))
+    }
+}
 
-named!(
-    commit_record<CommitRecord>,
-    do_parse!(
-        version: call!(version_header, "CommitV".as_bytes())
-            >> author: maybe_string
-            >> comment: maybe_string
-            >> parent_count: be_u64
-            >> parents:
-                many_m_n!(
-                    parent_count as usize,
-                    parent_count as usize,
-                    call!(parent_key, version)
-                )
-            >> tree_sha: map_res!(non_null_string, TryInto::<SHA1>::try_into)
-            >> expand_key: cond!(version >= 4, be_u8)
-            >> compressed: cond!((8..=9).contains(&version), boolean)
-            >> compression_type: cond!(version >= 10, compression_type)
-            >> path: maybe_string
-            >> common_ancestor: cond!(version <= 7, maybe_string)
-            >> common_ancestor_stretched: cond!((4..=7).contains(&version), be_u8)
-            >> time_stamp: date_time
-            >> file_errors: cond!(version >= 3, file_errors)
-            >> missing_nodes: cond!(version >= 8, be_u8)
-            >> is_complete: cond!(version >= 9, be_u8)
-            >> plist: cond!(version >= 5, data)
-            >> arq_version: cond!(version >= 12, non_null_string)
-            >> (CommitRecord {
-                version,
-                author,
-                comment,
-                parents,
-                tree_sha,
-                expand_key: expand_key.map(|e| e != 0).unwrap_or(false),
-                compression_type: unwrap_compression_type(compressed, compression_type),
-                path,
-                timestamp: time_stamp,
-                file_errors: file_errors.unwrap_or_else(Vec::new),
-                missing_nodes: missing_nodes.map(|e| e != 0),
-                is_complete: is_complete.map(|e| e != 0),
-                plist: plist.unwrap_or_else(Vec::new),
-                arq_version,
-            })
-    )
-);
+const COMMIT_PREFIX : &[u8] = "CommitV".as_bytes();
+
+fn commit_record(i: &[u8]) -> IResult<&[u8], CommitRecord> {
+    let (i, version) = version_header(COMMIT_PREFIX)(i)?;
+    let (i, author) = maybe_string(i)?;
+    let (i, comment) = maybe_string(i)?;
+    let (i, pcount) = be_u64(i).map(|(i, x)| (i, x as usize))?;
+    let (i, parents) = many_m_n(pcount, pcount, parent_key(version))(i)?;
+    let (i, tree_sha) = map_res(non_null_string, TryInto::<SHA1>::try_into)(i)?;
+    let (i, expand_key) = cond(version >= 4, boolean)(i)?;
+    let (i, is_compressed) = cond((8..=9).contains(&version), boolean)(i)?;
+    let (i, compression_type) = cond(version >= 10, compression_type)(i)?;
+    let (i, path) = maybe_string(i)?;
+    let (i, _common_ancestor) = cond(version <= 7, maybe_sha_string)(i)?;
+    let (i, _common_ancestor_stretched) = cond((4..=7).contains(&version), boolean)(i)?;
+    let (i, time_stamp) = date_time(i)?;
+    let (i, file_errors) = cond(version >= 3, file_errors)(i)?;
+    let (i, missing_nodes) = cond(version >= 8, boolean)(i)?;
+    let (i, is_complete) = cond(version >= 9, boolean)(i)?;
+    let (i, plist) =  cond(version >= 5, length_data(be_u64))(i)?;
+    let (i, arq_version) = cond(version >= 12, non_null_string)(i)?;
+
+    let compression_type = unwrap_compression_type(is_compressed, compression_type);
+
+    let record = CommitRecord {
+        version,
+        author,
+        comment,
+        parents,
+        tree_sha,
+        expand_key: expand_key.unwrap_or(false),
+        compression_type,
+        path,
+        timestamp: time_stamp,
+        file_errors: file_errors.unwrap_or_else(Vec::new),
+        missing_nodes,
+        is_complete,
+        plist: plist.map(Vec::from).unwrap_or_else(Vec::new),
+        arq_version,
+    };
+    Ok((i, record))
+}
 
 pub fn parse(data: &[u8]) -> Result<CommitRecord, RepoError> {
     commit_record(data)
@@ -127,7 +112,7 @@ pub fn parse(data: &[u8]) -> Result<CommitRecord, RepoError> {
 #[cfg(test)]
 mod test {
     const COMMIT_V9: &[u8] = include_bytes!("commit.blob");
-    use crate::mocks::*;
+    //use crate::mocks::*;
 
     #[test]
     fn test_parse_v9() {

@@ -37,7 +37,7 @@ impl Cache {
             let tmp = path.with_extension(".tmp");
 
             if let Some(parent_dir) = path.parent() {
-                std::fs::create_dir_all(parent_dir);
+                let _ = std::fs::create_dir_all(parent_dir);
             }
 
             if let Ok(mut f) = std::fs::OpenOptions::new()
@@ -45,10 +45,10 @@ impl Cache {
                 .write(true)
                 .open(&tmp)
             {
-                f.write_all(data);
+                let _ = f.write_all(data);
                 drop(f);
 
-                std::fs::rename(&tmp, &path);
+                let _ = std::fs::rename(&tmp, &path);
             }
         }
     }

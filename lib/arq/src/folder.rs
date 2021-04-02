@@ -53,7 +53,7 @@ impl Folder {
         Ok(f)
     }
 
-    pub async fn get_latest_commit<'a>(&'a self) -> Result<Commit<'a>, RepoError> {
+    pub async fn get_latest_commit(&'_ self) -> Result<Commit<'_>, RepoError> {
         let key = storage::Key::from(format!(
             "{}/bucketdata/{}/refs/heads/master",
             self.computer_id,
@@ -75,7 +75,7 @@ impl Folder {
         self.get_commit(commit_sha).await
     }
 
-    pub async fn get_commit<'a>(&'a self, commit_id: SHA1) -> Result<Commit<'a>, RepoError> {
+    pub async fn get_commit(&'_ self, commit_id: SHA1) -> Result<Commit<'_>, RepoError> {
         log::info!("Loading commit {}", commit_id);
         self.packset.load(&commit_id).await.and_then(|blob| {
             self.decrypter

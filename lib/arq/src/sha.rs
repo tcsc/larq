@@ -17,6 +17,14 @@ impl TryFrom<Vec<u8>> for SHA1 {
     }
 }
 
+impl<'a> TryFrom<&[u8]> for SHA1 {
+    type Error = std::array::TryFromSliceError;
+
+    fn try_from(v: &[u8]) -> Result<SHA1, Self::Error> {
+        TryFrom::try_from(v).map(SHA1)
+    }
+}
+
 impl<'a> TryFrom<&'a str> for SHA1 {
     type Error = &'static str;
 

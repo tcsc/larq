@@ -9,11 +9,11 @@ struct NullStore {}
 
 #[async_trait]
 impl Store for NullStore {
-    async fn list_contents(&self, path: &str, flags: Include) -> storage::Result<Vec<ObjectInfo>> {
+    async fn list_contents(&self, _path: &str, _flags: Include) -> storage::Result<Vec<ObjectInfo>> {
         Ok(Vec::new())
     }
 
-    async fn get(&self, key: Key) -> storage::Result<Vec<u8>> {
+    async fn get(&self, _key: Key) -> storage::Result<Vec<u8>> {
         Ok(Vec::new())
     }
 }
@@ -21,7 +21,7 @@ impl Store for NullStore {
 struct NullDecrypter {}
 
 impl ObjectDecrypter for NullDecrypter {
-    fn decrypt_object(&self, object_bytes: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    fn decrypt_object(&self, _object_bytes: &[u8]) -> Result<Vec<u8>, CryptoError> {
         Ok(Vec::new())
     }
 }

@@ -2,7 +2,6 @@ mod cache;
 
 use arq_storage::{Error as StorageError, Include, Key, ObjectInfo, Result as StorageResult};
 use log::{debug, error};
-use std::path::PathBuf;
 
 use rusoto_core::{
     credential::StaticProvider,
